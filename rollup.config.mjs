@@ -5,7 +5,7 @@ export default [
     {
         input: 'src/index.ts',
         output: {
-            dir: 'dist/default/esm',
+            dir: 'dist/node/esm',
             format: 'esm',
             entryFileNames: 'index.mjs',
             sourcemap: false
@@ -23,7 +23,7 @@ export default [
     {
         input: 'src/index.ts',
         output: {
-            dir: 'dist/default/cjs',
+            dir: 'dist/node/cjs',
             format: 'cjs',
             entryFileNames: 'index.js',
             sourcemap: false,
