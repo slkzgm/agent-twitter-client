@@ -25,7 +25,7 @@ export default [
         output: {
             dir: 'dist/node/cjs',
             format: 'cjs',
-            entryFileNames: 'index.js',
+            entryFileNames: 'index.cjs',
             sourcemap: false,
         },
         plugins: [
