@@ -1,12 +1,31 @@
-import { TwitterAuth } from './auth';
-import { ApiError } from './errors';
-import { Platform, PlatformExtensions } from './platform';
-import { updateCookieJar } from './requests';
-import { Headers } from 'headers-polyfill';
+import { Headers } from "headers-polyfill";
+import type { TwitterAuth } from "./auth";
+import { ApiError } from "./errors";
+import { Platform, type PlatformExtensions } from "./platform";
+import { updateCookieJar } from "./requests";
 
 // For some reason using Parameters<typeof fetch> reduces the request transform function to
 // `(url: string) => string` in tests.
+/**
+ * Represents an array type for parameters used in the fetch function,
+ * with the first element being input of type RequestInfo or URL,
+ * and the second element being init of type RequestInit or optional if not provided.
+ */
 type FetchParameters = [input: RequestInfo | URL, init?: RequestInit];
+
+/**
+ * @typedef {Object} FetchTransformOptions
+ * @property {Function} request Transforms the request options before a request is made. This executes after all of the default
+ * parameters have been configured, and is stateless. It is safe to return new request options
+ * objects.
+ * @param {FetchParameters} args The request options.
+ * @returns {FetchParameters|Promise<FetchParameters>} The transformed request options.
+ *
+ * @property {Function} response Transforms the response after a request completes. This executes immediately after the request
+ * completes, and is stateless. It is safe to return a new response object.
+ * @param {Response} response The response object.
+ * @returns {Response|Promise<Response>} The transformed response object.
+ */
 
 export interface FetchTransformOptions {
   /**
@@ -30,7 +49,7 @@ export interface FetchTransformOptions {
 }
 
 export const bearerToken =
-  'AAAAAAAAAAAAAAAAAAAAAFQODgEAAAAAVHTp76lzh3rFzcHbmHVvQxYYpTw%3DckAlMINMjmCwxUcaXbAN4XqJVdgMJaHqNOFgPMK0zN1qLqLQCF';
+  "AAAAAAAAAAAAAAAAAAAAAFQODgEAAAAAVHTp76lzh3rFzcHbmHVvQxYYpTw%3DckAlMINMjmCwxUcaXbAN4XqJVdgMJaHqNOFgPMK0zN1qLqLQCF";
 
 /**
  * An API result container.
@@ -49,9 +68,9 @@ export type RequestApiResult<T> =
 export async function requestApi<T>(
   url: string,
   auth: TwitterAuth,
-  method: 'GET' | 'POST' = 'GET',
+  method: "GET" | "POST" = "GET",
   platform: PlatformExtensions = new Platform(),
-  body?: any,
+  body?: any
 ): Promise<RequestApiResult<T>> {
   const headers = new Headers();
   await auth.installTo(headers, url);
@@ -62,8 +81,8 @@ export async function requestApi<T>(
     try {
       res = await auth.fetch(url, {
         method,
-        headers,
-        credentials: 'include',
+        headers: headers as any,
+        credentials: "include",
         ...(body && { body: JSON.stringify(body) }),
       });
     } catch (err) {
@@ -72,7 +91,7 @@ export async function requestApi<T>(
       }
       return {
         success: false,
-        err: new Error('Failed to perform request.'),
+        err: new Error("Failed to perform request."),
       };
     }
 
@@ -85,11 +104,12 @@ export async function requestApi<T>(
       - x-rate-limit-reset: UNIX timestamp when the current rate limit will be reset.
       - x-rate-limit-remaining: Number of requests remaining in current time period?
       */
-      const xRateLimitRemaining = res.headers.get('x-rate-limit-remaining');
-      const xRateLimitReset = res.headers.get('x-rate-limit-reset');
-      if (xRateLimitRemaining == '0' && xRateLimitReset) {
+      const xRateLimitRemaining = res.headers.get("x-rate-limit-remaining");
+      const xRateLimitReset = res.headers.get("x-rate-limit-reset");
+      if (xRateLimitRemaining === "0" && xRateLimitReset) {
         const currentTime = new Date().valueOf() / 1000;
-        const timeDeltaMs = 1000 * (parseInt(xRateLimitReset) - currentTime);
+        const timeDeltaMs =
+          1000 * (Number.parseInt(xRateLimitReset) - currentTime);
 
         // I have seen this block for 800s (~13 *minutes*)
         await new Promise((resolve) => setTimeout(resolve, timeDeltaMs));
@@ -105,29 +125,30 @@ export async function requestApi<T>(
   }
 
   // Check if response is chunked
-  const transferEncoding = res.headers.get('transfer-encoding');
-  if (transferEncoding === 'chunked') {
+  const transferEncoding = res.headers.get("transfer-encoding");
+  if (transferEncoding === "chunked") {
     // Handle streaming response, if a reader is present
-    const reader = typeof res.body?.getReader === 'function' ? res.body.getReader() : null;
+    const reader =
+      typeof res.body?.getReader === "function" ? res.body.getReader() : null;
     if (!reader) {
       try {
         const text = await res.text();
         try {
           const value = JSON.parse(text);
           return { success: true, value };
-        } catch (e) {
+        } catch (_e) {
           // Return if just a normal string
           return { success: true, value: { text } as any };
         }
-      } catch (e) {
+      } catch (_e) {
         return {
           success: false,
-          err: new Error('No readable stream available and cant parse'),
+          err: new Error("No readable stream available and cant parse"),
         };
       }
     }
 
-    let chunks: any = '';
+    let chunks: any = "";
     // Read all chunks before attempting to parse
     while (true) {
       const { done, value } = await reader.read();
@@ -135,28 +156,23 @@ export async function requestApi<T>(
 
       // Convert chunk to text and append
       chunks += new TextDecoder().decode(value);
-
-      // Log chunk for debugging (optional)
-      // console.log('Received chunk:', new TextDecoder().decode(value));
     }
 
     // Now try to parse the complete accumulated response
     try {
-      // console.log('attempting to parse chunks', chunks);
       const value = JSON.parse(chunks);
       return { success: true, value };
-    } catch (e) {
-      // console.log('parsing chunks failed, sending as raw text');
+    } catch (_e) {
       // If we can't parse as JSON, return the raw text
       return { success: true, value: { text: chunks } as any };
     }
   }
 
   // Handle non-streaming responses as before
-  const contentType = res.headers.get('content-type');
-  if (contentType && contentType.includes('application/json')) {
+  const contentType = res.headers.get("content-type");
+  if (contentType?.includes("application/json")) {
     const value: T = await res.json();
-    if (res.headers.get('x-rate-limit-incoming') == '0') {
+    if (res.headers.get("x-rate-limit-incoming") === "0") {
       auth.deleteToken();
     }
     return { success: true, value };
@@ -202,41 +218,41 @@ export function addApiFeatures(o: object) {
 
 export function addApiParams(
   params: URLSearchParams,
-  includeTweetReplies: boolean,
+  includeTweetReplies: boolean
 ): URLSearchParams {
-  params.set('include_profile_interstitial_type', '1');
-  params.set('include_blocking', '1');
-  params.set('include_blocked_by', '1');
-  params.set('include_followed_by', '1');
-  params.set('include_want_retweets', '1');
-  params.set('include_mute_edge', '1');
-  params.set('include_can_dm', '1');
-  params.set('include_can_media_tag', '1');
-  params.set('include_ext_has_nft_avatar', '1');
-  params.set('include_ext_is_blue_verified', '1');
-  params.set('include_ext_verified_type', '1');
-  params.set('skip_status', '1');
-  params.set('cards_platform', 'Web-12');
-  params.set('include_cards', '1');
-  params.set('include_ext_alt_text', 'true');
-  params.set('include_ext_limited_action_results', 'false');
-  params.set('include_quote_count', 'true');
-  params.set('include_reply_count', '1');
-  params.set('tweet_mode', 'extended');
-  params.set('include_ext_collab_control', 'true');
-  params.set('include_ext_views', 'true');
-  params.set('include_entities', 'true');
-  params.set('include_user_entities', 'true');
-  params.set('include_ext_media_color', 'true');
-  params.set('include_ext_media_availability', 'true');
-  params.set('include_ext_sensitive_media_warning', 'true');
-  params.set('include_ext_trusted_friends_metadata', 'true');
-  params.set('send_error_codes', 'true');
-  params.set('simple_quoted_tweet', 'true');
-  params.set('include_tweet_replies', `${includeTweetReplies}`);
+  params.set("include_profile_interstitial_type", "1");
+  params.set("include_blocking", "1");
+  params.set("include_blocked_by", "1");
+  params.set("include_followed_by", "1");
+  params.set("include_want_retweets", "1");
+  params.set("include_mute_edge", "1");
+  params.set("include_can_dm", "1");
+  params.set("include_can_media_tag", "1");
+  params.set("include_ext_has_nft_avatar", "1");
+  params.set("include_ext_is_blue_verified", "1");
+  params.set("include_ext_verified_type", "1");
+  params.set("skip_status", "1");
+  params.set("cards_platform", "Web-12");
+  params.set("include_cards", "1");
+  params.set("include_ext_alt_text", "true");
+  params.set("include_ext_limited_action_results", "false");
+  params.set("include_quote_count", "true");
+  params.set("include_reply_count", "1");
+  params.set("tweet_mode", "extended");
+  params.set("include_ext_collab_control", "true");
+  params.set("include_ext_views", "true");
+  params.set("include_entities", "true");
+  params.set("include_user_entities", "true");
+  params.set("include_ext_media_color", "true");
+  params.set("include_ext_media_availability", "true");
+  params.set("include_ext_sensitive_media_warning", "true");
+  params.set("include_ext_trusted_friends_metadata", "true");
+  params.set("send_error_codes", "true");
+  params.set("simple_quoted_tweet", "true");
+  params.set("include_tweet_replies", `${includeTweetReplies}`);
   params.set(
-    'ext',
-    'mediaStats,highlightedLabel,hasNftAvatar,voiceInfo,birdwatchPivot,enrichments,superFollowMetadata,unmentionInfo,editControl,collab_control,vibe',
+    "ext",
+    "mediaStats,highlightedLabel,hasNftAvatar,voiceInfo,birdwatchPivot,enrichments,superFollowMetadata,unmentionInfo,editControl,collab_control,vibe"
   );
   return params;
 }

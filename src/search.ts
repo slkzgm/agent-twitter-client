@@ -1,32 +1,37 @@
-import { addApiFeatures, requestApi } from './api';
-import { TwitterAuth } from './auth';
-import { Profile } from './profile';
-import { QueryProfilesResponse, QueryTweetsResponse } from './timeline-v1';
-import { getTweetTimeline, getUserTimeline } from './timeline-async';
-import { Tweet } from './tweets';
+import stringify from "json-stable-stringify";
+import { addApiFeatures, requestApi } from "./api";
+import type { TwitterAuth } from "./auth";
+import type { Profile } from "./profile";
+import { getTweetTimeline, getUserTimeline } from "./timeline-async";
 import {
-  SearchTimeline,
+  type SearchTimeline,
   parseSearchTimelineTweets,
   parseSearchTimelineUsers,
-} from './timeline-search';
-import stringify from 'json-stable-stringify';
+} from "./timeline-search";
+import type { QueryProfilesResponse, QueryTweetsResponse } from "./timeline-v1";
+import type { Tweet } from "./tweets";
 
 /**
  * The categories that can be used in Twitter searches.
  */
+/**
+ * Enum representing different search modes.
+ * @enum {number}
+ */
+
 export enum SearchMode {
-  Top,
-  Latest,
-  Photos,
-  Videos,
-  Users,
+  Top = 0,
+  Latest = 1,
+  Photos = 2,
+  Videos = 3,
+  Users = 4,
 }
 
 export function searchTweets(
   query: string,
   maxTweets: number,
   searchMode: SearchMode,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): AsyncGenerator<Tweet, void> {
   return getTweetTimeline(query, maxTweets, (q, mt, c) => {
     return fetchSearchTweets(q, mt, searchMode, auth, c);
@@ -36,7 +41,7 @@ export function searchTweets(
 export function searchProfiles(
   query: string,
   maxProfiles: number,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): AsyncGenerator<Profile, void> {
   return getUserTimeline(query, maxProfiles, (q, mt, c) => {
     return fetchSearchProfiles(q, mt, auth, c);
@@ -48,14 +53,14 @@ export async function fetchSearchTweets(
   maxTweets: number,
   searchMode: SearchMode,
   auth: TwitterAuth,
-  cursor?: string,
+  cursor?: string
 ): Promise<QueryTweetsResponse> {
   const timeline = await getSearchTimeline(
     query,
     maxTweets,
     searchMode,
     auth,
-    cursor,
+    cursor
   );
 
   return parseSearchTimelineTweets(timeline);
@@ -65,14 +70,14 @@ export async function fetchSearchProfiles(
   query: string,
   maxProfiles: number,
   auth: TwitterAuth,
-  cursor?: string,
+  cursor?: string
 ): Promise<QueryProfilesResponse> {
   const timeline = await getSearchTimeline(
     query,
     maxProfiles,
     SearchMode.Users,
     auth,
-    cursor,
+    cursor
   );
 
   return parseSearchTimelineUsers(timeline);
@@ -83,10 +88,10 @@ async function getSearchTimeline(
   maxItems: number,
   searchMode: SearchMode,
   auth: TwitterAuth,
-  cursor?: string,
+  cursor?: string
 ): Promise<SearchTimeline> {
   if (!auth.isLoggedIn()) {
-    throw new Error('Scraper is not logged-in for search.');
+    throw new Error("Client is not logged-in for search.");
   }
 
   if (maxItems > 50) {
@@ -96,8 +101,8 @@ async function getSearchTimeline(
   const variables: Record<string, any> = {
     rawQuery: query,
     count: maxItems,
-    querySource: 'typed_query',
-    product: 'Top',
+    querySource: "typed_query",
+    product: "Top",
   };
 
   const features = addApiFeatures({
@@ -116,39 +121,39 @@ async function getSearchTimeline(
     withArticleRichContentState: false,
   };
 
-  if (cursor != null && cursor != '') {
-    variables['cursor'] = cursor;
+  if (cursor != null && cursor !== "") {
+    variables.cursor = cursor;
   }
 
   switch (searchMode) {
     case SearchMode.Latest:
-      variables.product = 'Latest';
+      variables.product = "Latest";
       break;
     case SearchMode.Photos:
-      variables.product = 'Photos';
+      variables.product = "Photos";
       break;
     case SearchMode.Videos:
-      variables.product = 'Videos';
+      variables.product = "Videos";
       break;
     case SearchMode.Users:
-      variables.product = 'People';
+      variables.product = "People";
       break;
     default:
       break;
   }
 
   const params = new URLSearchParams();
-  params.set('features', stringify(features) ?? '');
-  params.set('fieldToggles', stringify(fieldToggles) ?? '');
-  params.set('variables', stringify(variables) ?? '');
+  params.set("features", stringify(features) ?? "");
+  params.set("fieldToggles", stringify(fieldToggles) ?? "");
+  params.set("variables", stringify(variables) ?? "");
 
   const res = await requestApi<SearchTimeline>(
     `https://api.twitter.com/graphql/gkjsKepM6gl_HmFWoWKfgg/SearchTimeline?${params.toString()}`,
-    auth,
+    auth
   );
 
   if (!res.success) {
-    throw res.err;
+    throw (res as any).err;
   }
 
   return res.value;
@@ -169,7 +174,7 @@ export async function fetchQuotedTweetsPage(
   quotedTweetId: string,
   maxTweets: number,
   auth: TwitterAuth,
-  cursor?: string,
+  cursor?: string
 ): Promise<QueryTweetsResponse> {
   if (maxTweets > 50) {
     maxTweets = 50;
@@ -179,11 +184,11 @@ export async function fetchQuotedTweetsPage(
   const variables: Record<string, any> = {
     rawQuery: `quoted_tweet_id:${quotedTweetId}`,
     count: maxTweets,
-    querySource: 'tdqt',
-    product: 'Top',
+    querySource: "tdqt",
+    product: "Top",
   };
 
-  if (cursor && cursor !== '') {
+  if (cursor && cursor !== "") {
     variables.cursor = cursor;
   }
 
@@ -226,16 +231,16 @@ export async function fetchQuotedTweetsPage(
   };
 
   const params = new URLSearchParams();
-  params.set('features', stringify(features) ?? '');
-  params.set('fieldToggles', stringify(fieldToggles) ?? '');
-  params.set('variables', stringify(variables) ?? '');
+  params.set("features", stringify(features) ?? "");
+  params.set("fieldToggles", stringify(fieldToggles) ?? "");
+  params.set("variables", stringify(variables) ?? "");
 
   const url = `https://x.com/i/api/graphql/1BP5aKg8NvTNvRCyyCyq8g/SearchTimeline?${params.toString()}`;
 
   // Perform the request
   const res = await requestApi(url, auth);
   if (!res.success) {
-    throw res.err;
+    throw (res as any).err;
   }
 
   // Force cast for TypeScript
@@ -251,7 +256,7 @@ export async function fetchQuotedTweetsPage(
 export async function* searchQuotedTweets(
   quotedTweetId: string,
   maxTweets: number,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): AsyncGenerator<QueryTweetsResponse> {
   let cursor: string | undefined;
 
@@ -260,7 +265,7 @@ export async function* searchQuotedTweets(
       quotedTweetId,
       maxTweets,
       auth,
-      cursor,
+      cursor
     );
     yield response;
 

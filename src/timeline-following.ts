@@ -1,8 +1,14 @@
-import { requestApi } from './api';
-import { TwitterAuth } from './auth';
-import { ApiError } from './errors';
-import { TimelineInstruction } from './timeline-v2';
+import { type RequestApiResult, requestApi } from "./api";
+import type { TwitterAuth } from "./auth";
+import { ApiError } from "./errors";
+import type { TimelineInstruction } from "./timeline-v2";
 
+/**
+ * Interface for the response data of the latest timeline for the home page.
+ * @property {object} data - The response data object.
+ * @property {object} data.home - The home object within the response data.
+ * @property {array} data.home.home_timeline_urt - The array of timeline instructions for the home page.
+ */
 export interface HomeLatestTimelineResponse {
   data?: {
     home: {
@@ -13,16 +19,24 @@ export interface HomeLatestTimelineResponse {
   };
 }
 
+/**
+ * Fetches the following timeline from Twitter API.
+ *
+ * @param {number} count - The number of tweets to fetch
+ * @param {string[]} seenTweetIds - Array of IDs of tweets that have been seen
+ * @param {TwitterAuth} auth - The authentication credentials
+ * @returns {Promise<any[]>} - Array of tweets in the following timeline
+ */
 export async function fetchFollowingTimeline(
   count: number,
   seenTweetIds: string[],
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): Promise<any[]> {
   const variables = {
     count,
     includePromotedContent: true,
     latestControlAvailable: true,
-    requestContext: 'launch',
+    requestContext: "launch",
     seenTweetIds,
   };
 
@@ -54,19 +68,19 @@ export async function fetchFollowingTimeline(
     responsive_web_enhance_cards_enabled: false,
   };
 
-  const res = await requestApi<HomeLatestTimelineResponse>(
+  const res = (await requestApi<HomeLatestTimelineResponse>(
     `https://x.com/i/api/graphql/K0X1xbCZUjttdK8RazKAlw/HomeLatestTimeline?variables=${encodeURIComponent(
-      JSON.stringify(variables),
+      JSON.stringify(variables)
     )}&features=${encodeURIComponent(JSON.stringify(features))}`,
     auth,
-    'GET',
-  );
+    "GET"
+  )) as RequestApiResult<HomeLatestTimelineResponse>;
 
   if (!res.success) {
-    if (res.err instanceof ApiError) {
-      console.error('Error details:', res.err.data);
+    if ((res as any).err instanceof ApiError) {
+      console.error("Error details:", (res as any).err.data);
     }
-    throw res.err;
+    throw (res as any).err;
   }
 
   const home = res.value?.data?.home.home_timeline_urt?.instructions;
@@ -78,7 +92,7 @@ export async function fetchFollowingTimeline(
   const entries: any[] = [];
 
   for (const instruction of home) {
-    if (instruction.type === 'TimelineAddEntries') {
+    if (instruction.type === "TimelineAddEntries") {
       for (const entry of instruction.entries ?? []) {
         entries.push(entry);
       }

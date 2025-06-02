@@ -1,22 +1,4 @@
-import { addApiFeatures, requestApi } from './api';
-import { TwitterAuth } from './auth';
-import { getUserIdByScreenName } from './profile';
-import { QueryTweetsResponse } from './timeline-v1';
-import {
-  parseTimelineTweetsV2,
-  TimelineV2,
-  TimelineEntryItemContentRaw,
-  parseTimelineEntryItemContentRaw,
-  ThreadedConversation,
-  parseThreadedConversation,
-  parseArticle,
-  TimelineArticle,
-} from './timeline-v2';
-import { getTweetTimeline } from './timeline-async';
-import { apiRequestFactory } from './api-data';
-import { ListTimeline, parseListTimelineTweets } from './timeline-list';
-import { updateCookieJar } from './requests';
-import {
+import type {
   ApiV2Includes,
   MediaObjectV2,
   PlaceV2,
@@ -29,97 +11,148 @@ import {
   TTweetv2UserField,
   TweetV2,
   UserV2,
-} from 'twitter-api-v2';
+} from "twitter-api-v2";
+import { addApiFeatures, requestApi } from "./api";
+import { apiRequestFactory } from "./api-data";
+import type { TwitterAuth } from "./auth";
+import { getTwitterApiHeaders } from "./browser-fingerprint";
+import { getEntityIdByScreenName } from "./profile";
+import { updateCookieJar } from "./requests";
+import { getTweetTimeline } from "./timeline-async";
+import { type ListTimeline, parseListTimelineTweets } from "./timeline-list";
+import type { QueryTweetsResponse } from "./timeline-v1";
+import {
+  type ThreadedConversation,
+  type TimelineArticle,
+  type TimelineEntryItemContentRaw,
+  type TimelineV2,
+  parseArticle,
+  parseThreadedConversation,
+  parseTimelineEntryItemContentRaw,
+  parseTimelineTweetsV2,
+} from "./timeline-v2";
 
+/**
+ * Default options for Twitter API v2 request parameters.
+ * @typedef {Object} defaultOptions
+ * @property {TTweetv2Expansion[]} expansions - List of expansions to include in the request.
+ * @property {TTweetv2TweetField[]} tweetFields - List of tweet fields to include in the request.
+ * @property {TTweetv2PollField[]} pollFields - List of poll fields to include in the request.
+ * @property {TTweetv2MediaField[]} mediaFields - List of media fields to include in the request.
+ * @property {TTweetv2UserField[]} userFields - List of user fields to include in the request.
+ * @property {TTweetv2PlaceField[]} placeFields - List of place fields to include in the request.
+ */
 export const defaultOptions = {
   expansions: [
-    'attachments.poll_ids',
-    'attachments.media_keys',
-    'author_id',
-    'referenced_tweets.id',
-    'in_reply_to_user_id',
-    'edit_history_tweet_ids',
-    'geo.place_id',
-    'entities.mentions.username',
-    'referenced_tweets.id.author_id',
+    "attachments.poll_ids",
+    "attachments.media_keys",
+    "author_id",
+    "referenced_tweets.id",
+    "in_reply_to_user_id",
+    "edit_history_tweet_ids",
+    "geo.place_id",
+    "entities.mentions.username",
+    "referenced_tweets.id.author_id",
   ] as TTweetv2Expansion[],
   tweetFields: [
-    'attachments',
-    'author_id',
-    'context_annotations',
-    'conversation_id',
-    'created_at',
-    'entities',
-    'geo',
-    'id',
-    'in_reply_to_user_id',
-    'lang',
-    'public_metrics',
-    'edit_controls',
-    'possibly_sensitive',
-    'referenced_tweets',
-    'reply_settings',
-    'source',
-    'text',
-    'withheld',
-    'note_tweet',
+    "attachments",
+    "author_id",
+    "context_annotations",
+    "conversation_id",
+    "created_at",
+    "entities",
+    "geo",
+    "id",
+    "in_reply_to_user_id",
+    "lang",
+    "public_metrics",
+    "edit_controls",
+    "possibly_sensitive",
+    "referenced_tweets",
+    "reply_settings",
+    "source",
+    "text",
+    "withheld",
+    "note_tweet",
   ] as TTweetv2TweetField[],
   pollFields: [
-    'duration_minutes',
-    'end_datetime',
-    'id',
-    'options',
-    'voting_status',
+    "duration_minutes",
+    "end_datetime",
+    "id",
+    "options",
+    "voting_status",
   ] as TTweetv2PollField[],
   mediaFields: [
-    'duration_ms',
-    'height',
-    'media_key',
-    'preview_image_url',
-    'type',
-    'url',
-    'width',
-    'public_metrics',
-    'alt_text',
-    'variants',
+    "duration_ms",
+    "height",
+    "media_key",
+    "preview_image_url",
+    "type",
+    "url",
+    "width",
+    "public_metrics",
+    "alt_text",
+    "variants",
   ] as TTweetv2MediaField[],
   userFields: [
-    'created_at',
-    'description',
-    'entities',
-    'id',
-    'location',
-    'name',
-    'profile_image_url',
-    'protected',
-    'public_metrics',
-    'url',
-    'username',
-    'verified',
-    'withheld',
+    "created_at",
+    "description",
+    "entities",
+    "id",
+    "location",
+    "name",
+    "profile_image_url",
+    "protected",
+    "public_metrics",
+    "url",
+    "username",
+    "verified",
+    "withheld",
   ] as TTweetv2UserField[],
   placeFields: [
-    'contained_within',
-    'country',
-    'country_code',
-    'full_name',
-    'geo',
-    'id',
-    'name',
-    'place_type',
+    "contained_within",
+    "country",
+    "country_code",
+    "full_name",
+    "geo",
+    "id",
+    "name",
+    "place_type",
   ] as TTweetv2PlaceField[],
 };
+/**
+ * Interface representing a mention.
+ * @typedef {Object} Mention
+ * @property {string} id - The unique identifier for the mention.
+ * @property {string} [username] - The username associated with the mention.
+ * @property {string} [name] - The name associated with the mention.
+ */
 export interface Mention {
   id: string;
   username?: string;
   name?: string;
 }
 
+/**
+ * Interface representing a photo object.
+ * @interface
+ * @property {string} id - The unique identifier for the photo.
+ * @property {string} url - The URL for the photo image.
+ * @property {string} [alt_text] - The alternative text for the photo image. Optional.
+ */
 export interface Photo {
   id: string;
   url: string;
   alt_text: string | undefined;
 }
+
+/**
+ * Interface representing a video object.
+ * @typedef {Object} Video
+ * @property {string} id - The unique identifier for the video.
+ * @property {string} preview - The URL for the preview image of the video.
+ * @property {string} [url] - The optional URL for the video.
+ */
 
 export interface Video {
   id: string;
@@ -127,6 +160,19 @@ export interface Video {
   url?: string;
 }
 
+/**
+ * Interface representing a raw place object.
+ * @typedef {Object} PlaceRaw
+ * @property {string} [id] - The unique identifier of the place.
+ * @property {string} [place_type] - The type of the place.
+ * @property {string} [name] - The name of the place.
+ * @property {string} [full_name] - The full name of the place.
+ * @property {string} [country_code] - The country code of the place.
+ * @property {string} [country] - The country name of the place.
+ * @property {Object} [bounding_box] - The bounding box coordinates of the place.
+ * @property {string} [bounding_box.type] - The type of the bounding box.
+ * @property {number[][][]} [bounding_box.coordinates] - The coordinates of the bounding box in an array format.
+ */
 export interface PlaceRaw {
   id?: string;
   place_type?: string;
@@ -140,6 +186,15 @@ export interface PlaceRaw {
   };
 }
 
+/**
+ * Interface representing poll data.
+ *
+ * @property {string} [id] - The unique identifier for the poll.
+ * @property {string} [end_datetime] - The end date and time for the poll.
+ * @property {string} [voting_status] - The status of the voting process.
+ * @property {number} duration_minutes - The duration of the poll in minutes.
+ * @property {PollOption[]} options - An array of poll options.
+ */
 export interface PollData {
   id?: string;
   end_datetime?: string;
@@ -148,6 +203,13 @@ export interface PollData {
   options: PollOption[];
 }
 
+/**
+ * Interface representing a poll option.
+ * @typedef {Object} PollOption
+ * @property {number} [position] - The position of the option.
+ * @property {string} label - The label of the option.
+ * @property {number} [votes] - The number of votes for the option.
+ */
 export interface PollOption {
   position?: number;
   label: string;
@@ -156,6 +218,47 @@ export interface PollOption {
 
 /**
  * A parsed Tweet object.
+ */
+/**
+ * Represents a Tweet on Twitter.
+ * @typedef { Object } Tweet
+ * @property { number } [bookmarkCount] - The number of times this Tweet has been bookmarked.
+ * @property { string } [conversationId] - The ID of the conversation this Tweet is a part of.
+ * @property {string[]} hashtags - An array of hashtags mentioned in the Tweet.
+ * @property { string } [html] - The HTML content of the Tweet.
+ * @property { string } [id] - The unique ID of the Tweet.
+ * @property { Tweet } [inReplyToStatus] - The Tweet that this Tweet is in reply to.
+ * @property { string } [inReplyToStatusId] - The ID of the Tweet that this Tweet is in reply to.
+ * @property { boolean } [isQuoted] - Indicates if this Tweet is a quote of another Tweet.
+ * @property { boolean } [isPin] - Indicates if this Tweet is pinned.
+ * @property { boolean } [isReply] - Indicates if this Tweet is a reply to another Tweet.
+ * @property { boolean } [isRetweet] - Indicates if this Tweet is a retweet.
+ * @property { boolean } [isSelfThread] - Indicates if this Tweet is part of a self thread.
+ * @property { string } [language] - The language of the Tweet.
+ * @property { number } [likes] - The number of likes on the Tweet.
+ * @property { string } [name] - The name associated with the Tweet.
+ * @property {Mention[]} mentions - An array of mentions in the Tweet.
+ * @property { string } [permanentUrl] - The permanent URL of the Tweet.
+ * @property {Photo[]} photos - An array of photos attached to the Tweet.
+ * @property { PlaceRaw } [place] - The place associated with the Tweet.
+ * @property { Tweet } [quotedStatus] - The quoted Tweet.
+ * @property { string } [quotedStatusId] - The ID of the quoted Tweet.
+ * @property { number } [quotes] - The number of times this Tweet has been quoted.
+ * @property { number } [replies] - The number of replies to the Tweet.
+ * @property { number } [retweets] - The number of retweets on the Tweet.
+ * @property { Tweet } [retweetedStatus] - The status that was retweeted.
+ * @property { string } [retweetedStatusId] - The ID of the retweeted status.
+ * @property { string } [text] - The text content of the Tweet.
+ * @property {Tweet[]} thread - An array representing a Twitter thread.
+ * @property { Date } [timeParsed] - The parsed timestamp of the Tweet.
+ * @property { number } [timestamp] - The timestamp of the Tweet.
+ * @property {string[]} urls - An array of URLs mentioned in the Tweet.
+ * @property { string } [userId] - The ID of the user who posted the Tweet.
+ * @property { string } [username] - The username of the user who posted the Tweet.
+ * @property {Video[]} videos - An array of videos attached to the Tweet.
+ * @property { number } [views] - The number of views on the Tweet.
+ * @property { boolean } [sensitiveContent] - Indicates if the Tweet contains sensitive content.
+ * @property {PollV2 | null} [poll] - The poll attached to the Tweet, if any.
  */
 export interface Tweet {
   bookmarkCount?: number;
@@ -221,7 +324,7 @@ export async function fetchTweets(
   userId: string,
   maxTweets: number,
   cursor: string | undefined,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): Promise<QueryTweetsResponse> {
   if (maxTweets > 200) {
     maxTweets = 200;
@@ -232,17 +335,17 @@ export async function fetchTweets(
   userTweetsRequest.variables.count = maxTweets;
   userTweetsRequest.variables.includePromotedContent = false; // true on the website
 
-  if (cursor != null && cursor != '') {
-    userTweetsRequest.variables['cursor'] = cursor;
+  if (cursor != null && cursor !== "") {
+    userTweetsRequest.variables.cursor = cursor;
   }
 
   const res = await requestApi<TimelineV2>(
     userTweetsRequest.toRequestUrl(),
-    auth,
+    auth
   );
 
   if (!res.success) {
-    throw res.err;
+    throw (res as any).err;
   }
 
   return parseTimelineTweetsV2(res.value);
@@ -252,7 +355,7 @@ export async function fetchTweetsAndReplies(
   userId: string,
   maxTweets: number,
   cursor: string | undefined,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): Promise<QueryTweetsResponse> {
   if (maxTweets > 40) {
     maxTweets = 40;
@@ -264,17 +367,17 @@ export async function fetchTweetsAndReplies(
   userTweetsRequest.variables.count = maxTweets;
   userTweetsRequest.variables.includePromotedContent = false; // true on the website
 
-  if (cursor != null && cursor != '') {
-    userTweetsRequest.variables['cursor'] = cursor;
+  if (cursor != null && cursor !== "") {
+    userTweetsRequest.variables.cursor = cursor;
   }
 
   const res = await requestApi<TimelineV2>(
     userTweetsRequest.toRequestUrl(),
-    auth,
+    auth
   );
 
   if (!res.success) {
-    throw res.err;
+    throw (res as any).err;
   }
 
   return parseTimelineTweetsV2(res.value);
@@ -286,16 +389,14 @@ export async function createCreateTweetRequestV2(
   tweetId?: string,
   options?: {
     poll?: PollData;
-    quoted_tweet_id?: string;
-  },
+  }
 ) {
   const v2client = auth.getV2Client();
   if (v2client == null) {
-    throw new Error('V2 client is not initialized');
+    throw new Error("V2 client is not initialized");
   }
-  const { poll, quoted_tweet_id } = options || {};
+  const { poll } = options || {};
   let tweetConfig;
-  
   if (poll) {
     tweetConfig = {
       text,
@@ -303,12 +404,6 @@ export async function createCreateTweetRequestV2(
         options: poll?.options.map((option) => option.label) ?? [],
         duration_minutes: poll?.duration_minutes ?? 60,
       },
-    };
-  } else if (quoted_tweet_id) {
-    // Handle quote tweet by including the quoted tweet ID
-    tweetConfig = {
-      text,
-      quote_tweet_id: quoted_tweet_id,
     };
   } else if (tweetId) {
     tweetConfig = {
@@ -322,17 +417,16 @@ export async function createCreateTweetRequestV2(
       text,
     };
   }
-  
   const tweetResponse = await v2client.v2.tweet(tweetConfig);
   let optionsConfig = {};
   if (options?.poll) {
     optionsConfig = {
-      expansions: ['attachments.poll_ids'],
+      expansions: ["attachments.poll_ids"],
       pollFields: [
-        'options',
-        'duration_minutes',
-        'end_datetime',
-        'voting_status',
+        "options",
+        "duration_minutes",
+        "end_datetime",
+        "voting_status",
       ],
     };
   }
@@ -342,7 +436,7 @@ export async function createCreateTweetRequestV2(
 export function parseTweetV2ToV1(
   tweetV2: TweetV2,
   includes?: ApiV2Includes,
-  defaultTweetData?: Tweet | null,
+  defaultTweetData?: Tweet | null
 ): Tweet {
   let parsedTweet: Tweet;
   if (defaultTweetData != null) {
@@ -350,7 +444,7 @@ export function parseTweetV2ToV1(
   }
   parsedTweet = {
     id: tweetV2.id,
-    text: tweetV2.text ?? defaultTweetData?.text ?? '',
+    text: tweetV2.text ?? defaultTweetData?.text ?? "",
     hashtags:
       tweetV2.entities?.hashtags?.map((tag) => tag.tag) ??
       defaultTweetData?.hashtags ??
@@ -378,8 +472,8 @@ export function parseTweetV2ToV1(
     photos: defaultTweetData?.photos ?? [],
     videos: defaultTweetData?.videos ?? [],
     poll: defaultTweetData?.poll ?? null,
-    username: defaultTweetData?.username ?? '',
-    name: defaultTweetData?.name ?? '',
+    username: defaultTweetData?.username ?? "",
+    name: defaultTweetData?.name ?? "",
     place: defaultTweetData?.place,
     thread: defaultTweetData?.thread ?? [],
   };
@@ -392,8 +486,8 @@ export function parseTweetV2ToV1(
       end_datetime: poll.end_datetime
         ? poll.end_datetime
         : defaultTweetData?.poll?.end_datetime
-        ? defaultTweetData?.poll?.end_datetime
-        : undefined,
+          ? defaultTweetData?.poll?.end_datetime
+          : undefined,
       options: poll.options.map((option) => ({
         position: option.position,
         label: option.label,
@@ -407,20 +501,20 @@ export function parseTweetV2ToV1(
   // Process Media (photos and videos)
   if (includes?.media?.length) {
     includes.media.forEach((media: MediaObjectV2) => {
-      if (media.type === 'photo') {
+      if (media.type === "photo") {
         parsedTweet.photos.push({
           id: media.media_key,
-          url: media.url ?? '',
-          alt_text: media.alt_text ?? '',
+          url: media.url ?? "",
+          alt_text: media.alt_text ?? "",
         });
-      } else if (media.type === 'video' || media.type === 'animated_gif') {
+      } else if (media.type === "video" || media.type === "animated_gif") {
         parsedTweet.videos.push({
           id: media.media_key,
-          preview: media.preview_image_url ?? '',
+          preview: media.preview_image_url ?? "",
           url:
             media.variants?.find(
-              (variant) => variant.content_type === 'video/mp4',
-            )?.url ?? '',
+              (variant) => variant.content_type === "video/mp4"
+            )?.url ?? "",
         });
       }
     });
@@ -429,27 +523,27 @@ export function parseTweetV2ToV1(
   // Process User (for author info)
   if (includes?.users?.length) {
     const user = includes.users.find(
-      (user: UserV2) => user.id === tweetV2.author_id,
+      (user: UserV2) => user.id === tweetV2.author_id
     );
     if (user) {
-      parsedTweet.username = user.username ?? defaultTweetData?.username ?? '';
-      parsedTweet.name = user.name ?? defaultTweetData?.name ?? '';
+      parsedTweet.username = user.username ?? defaultTweetData?.username ?? "";
+      parsedTweet.name = user.name ?? defaultTweetData?.name ?? "";
     }
   }
 
   // Process Place (if any)
   if (tweetV2?.geo?.place_id && includes?.places?.length) {
     const place = includes.places.find(
-      (place: PlaceV2) => place.id === tweetV2?.geo?.place_id,
+      (place: PlaceV2) => place.id === tweetV2?.geo?.place_id
     );
     if (place) {
       parsedTweet.place = {
         id: place.id,
-        full_name: place.full_name ?? defaultTweetData?.place?.full_name ?? '',
-        country: place.country ?? defaultTweetData?.place?.country ?? '',
+        full_name: place.full_name ?? defaultTweetData?.place?.full_name ?? "",
+        country: place.country ?? defaultTweetData?.place?.country ?? "",
         country_code:
-          place.country_code ?? defaultTweetData?.place?.country_code ?? '',
-        name: place.name ?? defaultTweetData?.place?.name ?? '',
+          place.country_code ?? defaultTweetData?.place?.country_code ?? "",
+        name: place.name ?? defaultTweetData?.place?.name ?? "",
         place_type: place.place_type ?? defaultTweetData?.place?.place_type,
       };
     }
@@ -464,25 +558,25 @@ export async function createCreateTweetRequest(
   auth: TwitterAuth,
   tweetId?: string,
   mediaData?: { data: Buffer; mediaType: string }[],
-  hideLinkPreview = false,
+  hideLinkPreview = false
 ) {
-  const onboardingTaskUrl = 'https://api.twitter.com/1.1/onboarding/task.json';
+  const onboardingTaskUrl = "https://api.twitter.com/1.1/onboarding/task.json";
 
   const cookies = await auth.cookieJar().getCookies(onboardingTaskUrl);
-  const xCsrfToken = cookies.find((cookie) => cookie.key === 'ct0');
+  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
 
   //@ ts-expect-error - This is a private API.
+  const twitterHeaders = await getTwitterApiHeaders();
   const headers = new Headers({
     authorization: `Bearer ${(auth as any).bearerToken}`,
     cookie: await auth.cookieJar().getCookieString(onboardingTaskUrl),
-    'content-type': 'application/json',
-    'User-Agent':
-      'Mozilla/5.0 (Linux; Android 11; Nokia G20) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.88 Mobile Safari/537.36',
-    'x-guest-token': (auth as any).guestToken,
-    'x-twitter-auth-type': 'OAuth2Client',
-    'x-twitter-active-user': 'yes',
-    'x-twitter-client-language': 'en',
-    'x-csrf-token': xCsrfToken?.value as string,
+    "content-type": "application/json",
+    "x-guest-token": (auth as any).guestToken,
+    "x-twitter-auth-type": "OAuth2Client",
+    "x-twitter-active-user": "yes",
+    "x-twitter-client-language": "en",
+    "x-csrf-token": xCsrfToken?.value as string,
+    ...Object.fromEntries(twitterHeaders.entries()),
   });
 
   const variables: Record<string, any> = {
@@ -496,14 +590,12 @@ export async function createCreateTweetRequest(
   };
 
   if (hideLinkPreview) {
-    variables["card_uri"] = "tombstone://card"
+    variables.card_uri = "tombstone://card";
   }
 
   if (mediaData && mediaData.length > 0) {
     const mediaIds = await Promise.all(
-      mediaData.map(({ data, mediaType }) =>
-        uploadMedia(data, auth, mediaType),
-      ),
+      mediaData.map(({ data, mediaType }) => uploadMedia(data, auth, mediaType))
     );
 
     variables.media.media_entities = mediaIds.map((id) => ({
@@ -517,7 +609,7 @@ export async function createCreateTweetRequest(
   }
 
   const response = await fetch(
-    'https://twitter.com/i/api/graphql/a1p9RWpkYKBjWv_I3WzS-A/CreateTweet',
+    "https://twitter.com/i/api/graphql/a1p9RWpkYKBjWv_I3WzS-A/CreateTweet",
     {
       headers,
       body: JSON.stringify({
@@ -564,8 +656,8 @@ export async function createCreateTweetRequest(
         },
         fieldToggles: {},
       }),
-      method: 'POST',
-    },
+      method: "POST",
+    }
   );
 
   await updateCookieJar(auth.cookieJar(), response.headers);
@@ -582,24 +674,24 @@ export async function createCreateNoteTweetRequest(
   text: string,
   auth: TwitterAuth,
   tweetId?: string,
-  mediaData?: { data: Buffer; mediaType: string }[],
+  mediaData?: { data: Buffer; mediaType: string }[]
 ) {
-  const onboardingTaskUrl = 'https://api.twitter.com/1.1/onboarding/task.json';
+  const onboardingTaskUrl = "https://api.twitter.com/1.1/onboarding/task.json";
 
   const cookies = await auth.cookieJar().getCookies(onboardingTaskUrl);
-  const xCsrfToken = cookies.find((cookie) => cookie.key === 'ct0');
+  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
 
+  const baseHeaders = await getTwitterApiHeaders();
   const headers = new Headers({
+    ...baseHeaders,
     authorization: `Bearer ${(auth as any).bearerToken}`,
     cookie: await auth.cookieJar().getCookieString(onboardingTaskUrl),
-    'content-type': 'application/json',
-    'User-Agent':
-      'Mozilla/5.0 (Linux; Android 11; Nokia G20) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.88 Mobile Safari/537.36',
-    'x-guest-token': (auth as any).guestToken,
-    'x-twitter-auth-type': 'OAuth2Client',
-    'x-twitter-active-user': 'yes',
-    'x-twitter-client-language': 'en',
-    'x-csrf-token': xCsrfToken?.value as string,
+    "content-type": "application/json",
+    "x-guest-token": (auth as any).guestToken,
+    "x-twitter-auth-type": "OAuth2Client",
+    "x-twitter-active-user": "yes",
+    "x-twitter-client-language": "en",
+    "x-csrf-token": xCsrfToken?.value as string,
   });
 
   const variables: Record<string, any> = {
@@ -614,9 +706,7 @@ export async function createCreateNoteTweetRequest(
 
   if (mediaData && mediaData.length > 0) {
     const mediaIds = await Promise.all(
-      mediaData.map(({ data, mediaType }) =>
-        uploadMedia(data, auth, mediaType),
-      ),
+      mediaData.map(({ data, mediaType }) => uploadMedia(data, auth, mediaType))
     );
 
     variables.media.media_entities = mediaIds.map((id) => ({
@@ -630,7 +720,7 @@ export async function createCreateNoteTweetRequest(
   }
 
   const response = await fetch(
-    'https://twitter.com/i/api/graphql/0aWhJJmFlxkxv9TAUJPanA/CreateNoteTweet',
+    "https://twitter.com/i/api/graphql/0aWhJJmFlxkxv9TAUJPanA/CreateNoteTweet",
     {
       headers,
       body: JSON.stringify({
@@ -683,8 +773,8 @@ export async function createCreateNoteTweetRequest(
         },
         fieldToggles: {},
       }),
-      method: 'POST',
-    },
+      method: "POST",
+    }
   );
 
   await updateCookieJar(auth.cookieJar(), response.headers);
@@ -692,7 +782,7 @@ export async function createCreateNoteTweetRequest(
   // Check for errors and log the error response
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Error response:', errorText);
+    console.error("Error response:", errorText);
     throw new Error(`Failed to create long tweet: ${errorText}`);
   }
 
@@ -705,7 +795,7 @@ export async function fetchListTweets(
   listId: string,
   maxTweets: number,
   cursor: string | undefined,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): Promise<QueryTweetsResponse> {
   if (maxTweets > 200) {
     maxTweets = 200;
@@ -715,32 +805,81 @@ export async function fetchListTweets(
   listTweetsRequest.variables.listId = listId;
   listTweetsRequest.variables.count = maxTweets;
 
-  if (cursor != null && cursor != '') {
-    listTweetsRequest.variables['cursor'] = cursor;
+  if (cursor != null && cursor !== "") {
+    listTweetsRequest.variables.cursor = cursor;
   }
 
   const res = await requestApi<ListTimeline>(
     listTweetsRequest.toRequestUrl(),
-    auth,
+    auth
   );
 
   if (!res.success) {
-    throw res.err;
+    throw (res as any).err;
   }
 
   return parseListTimelineTweets(res.value);
 }
 
+export async function deleteTweet(tweetId: string, auth: TwitterAuth) {
+  const onboardingTaskUrl = "https://api.twitter.com/1.1/onboarding/task.json";
+
+  // Retrieve necessary cookies and tokens
+  const cookies = await auth.cookieJar().getCookies(onboardingTaskUrl);
+  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
+
+  const baseHeaders = await getTwitterApiHeaders();
+  const headers = new Headers({
+    ...baseHeaders,
+    authorization: `Bearer ${(auth as any).bearerToken}`,
+    cookie: await auth.cookieJar().getCookieString(onboardingTaskUrl),
+    "content-type": "application/json",
+    "x-guest-token": (auth as any).guestToken,
+    "x-twitter-auth-type": "OAuth2Client",
+    "x-twitter-active-user": "yes",
+    "x-csrf-token": xCsrfToken?.value as string,
+  });
+
+  // Construct variables for the GraphQL request
+  const variables: Record<string, any> = {
+    tweet_id: tweetId,
+    dark_request: false,
+  };
+
+  // Send the GraphQL request to delete a tweet
+  const response = await fetch(
+    "https://twitter.com/i/api/graphql/VaenaVgh5q5ih7kvyVjgtg/DeleteTweet",
+    {
+      headers,
+      body: JSON.stringify({
+        variables,
+        queryId: "VaenaVgh5q5ih7kvyVjgtg",
+      }),
+      method: "POST",
+    }
+  );
+
+  // Update the cookie jar with any new cookies from the response
+  await updateCookieJar(auth.cookieJar(), response.headers);
+
+  // Check for errors in the response
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response;
+}
+
 export function getTweets(
   user: string,
   maxTweets: number,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): AsyncGenerator<Tweet, void> {
   return getTweetTimeline(user, maxTweets, async (q, mt, c) => {
-    const userIdRes = await getUserIdByScreenName(q, auth);
+    const userIdRes = await getEntityIdByScreenName(q, auth);
 
     if (!userIdRes.success) {
-      throw userIdRes.err;
+      throw (userIdRes as any).err;
     }
 
     const { value: userId } = userIdRes;
@@ -752,7 +891,7 @@ export function getTweets(
 export function getTweetsByUserId(
   userId: string,
   maxTweets: number,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): AsyncGenerator<Tweet, void> {
   return getTweetTimeline(userId, maxTweets, (q, mt, c) => {
     return fetchTweets(q, mt, c, auth);
@@ -762,13 +901,13 @@ export function getTweetsByUserId(
 export function getTweetsAndReplies(
   user: string,
   maxTweets: number,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): AsyncGenerator<Tweet, void> {
   return getTweetTimeline(user, maxTweets, async (q, mt, c) => {
-    const userIdRes = await getUserIdByScreenName(q, auth);
+    const userIdRes = await getEntityIdByScreenName(q, auth);
 
     if (!userIdRes.success) {
-      throw userIdRes.err;
+      throw (userIdRes as any).err;
     }
 
     const { value: userId } = userIdRes;
@@ -780,7 +919,7 @@ export function getTweetsAndReplies(
 export function getTweetsAndRepliesByUserId(
   userId: string,
   maxTweets: number,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): AsyncGenerator<Tweet, void> {
   return getTweetTimeline(userId, maxTweets, (q, mt, c) => {
     return fetchTweetsAndReplies(q, mt, c, auth);
@@ -791,10 +930,10 @@ export async function fetchLikedTweets(
   userId: string,
   maxTweets: number,
   cursor: string | undefined,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): Promise<QueryTweetsResponse> {
   if (!auth.isLoggedIn()) {
-    throw new Error('Scraper is not logged-in for fetching liked tweets.');
+    throw new Error("Client is not logged-in for fetching liked tweets.");
   }
 
   if (maxTweets > 200) {
@@ -806,17 +945,17 @@ export async function fetchLikedTweets(
   userTweetsRequest.variables.count = maxTweets;
   userTweetsRequest.variables.includePromotedContent = false; // true on the website
 
-  if (cursor != null && cursor != '') {
-    userTweetsRequest.variables['cursor'] = cursor;
+  if (cursor != null && cursor !== "") {
+    userTweetsRequest.variables.cursor = cursor;
   }
 
   const res = await requestApi<TimelineV2>(
     userTweetsRequest.toRequestUrl(),
-    auth,
+    auth
   );
 
   if (!res.success) {
-    throw res.err;
+    throw (res as any).err;
   }
 
   return parseTimelineTweetsV2(res.value);
@@ -824,9 +963,9 @@ export async function fetchLikedTweets(
 
 export async function getTweetWhere(
   tweets: AsyncIterable<Tweet>,
-  query: TweetQuery,
+  query: TweetQuery
 ): Promise<Tweet | null> {
-  const isCallback = typeof query === 'function';
+  const isCallback = typeof query === "function";
 
   for await (const tweet of tweets) {
     const matches = isCallback
@@ -843,9 +982,9 @@ export async function getTweetWhere(
 
 export async function getTweetsWhere(
   tweets: AsyncIterable<Tweet>,
-  query: TweetQuery,
+  query: TweetQuery
 ): Promise<Tweet[]> {
-  const isCallback = typeof query === 'function';
+  const isCallback = typeof query === "function";
   const filtered = [];
 
   for await (const tweet of tweets) {
@@ -869,13 +1008,13 @@ export async function getLatestTweet(
   user: string,
   includeRetweets: boolean,
   max: number,
-  auth: TwitterAuth,
-): Promise<Tweet | null | void> {
+  auth: TwitterAuth
+): Promise<Tweet | null | undefined> {
   const timeline = getTweets(user, max, auth);
 
   // No point looping if max is 1, just use first entry.
   return max === 1
-    ? (await timeline.next()).value
+    ? ((await timeline.next()).value as Tweet)
     : await getTweetWhere(timeline, { isRetweet: includeRetweets });
 }
 
@@ -885,18 +1024,18 @@ export interface TweetResultByRestId {
 
 export async function getTweet(
   id: string,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): Promise<Tweet | null> {
   const tweetDetailRequest = apiRequestFactory.createTweetDetailRequest();
   tweetDetailRequest.variables.focalTweetId = id;
 
   const res = await requestApi<ThreadedConversation>(
     tweetDetailRequest.toRequestUrl(),
-    auth,
+    auth
   );
 
   if (!res.success) {
-    throw res.err;
+    throw (res as any).err;
   }
 
   if (!res.value) {
@@ -917,21 +1056,21 @@ export async function getTweetV2(
     mediaFields?: TTweetv2MediaField[];
     userFields?: TTweetv2UserField[];
     placeFields?: TTweetv2PlaceField[];
-  } = defaultOptions,
+  } = defaultOptions
 ): Promise<Tweet | null> {
   const v2client = auth.getV2Client();
   if (!v2client) {
-    throw new Error('V2 client is not initialized');
+    throw new Error("V2 client is not initialized");
   }
 
   try {
     const tweetData = await v2client.v2.singleTweet(id, {
       expansions: options?.expansions,
-      'tweet.fields': options?.tweetFields,
-      'poll.fields': options?.pollFields,
-      'media.fields': options?.mediaFields,
-      'user.fields': options?.userFields,
-      'place.fields': options?.placeFields,
+      "tweet.fields": options?.tweetFields,
+      "poll.fields": options?.pollFields,
+      "media.fields": options?.mediaFields,
+      "user.fields": options?.userFields,
+      "place.fields": options?.placeFields,
     });
 
     if (!tweetData?.data) {
@@ -944,7 +1083,7 @@ export async function getTweetV2(
     const parsedTweet = parseTweetV2ToV1(
       tweetData.data,
       tweetData?.includes,
-      defaultTweetData,
+      defaultTweetData
     );
 
     return parsedTweet;
@@ -964,7 +1103,7 @@ export async function getTweetsV2(
     mediaFields?: TTweetv2MediaField[];
     userFields?: TTweetv2UserField[];
     placeFields?: TTweetv2PlaceField[];
-  } = defaultOptions,
+  } = defaultOptions
 ): Promise<Tweet[]> {
   const v2client = auth.getV2Client();
   if (!v2client) {
@@ -974,33 +1113,31 @@ export async function getTweetsV2(
   try {
     const tweetData = await v2client.v2.tweets(ids, {
       expansions: options?.expansions,
-      'tweet.fields': options?.tweetFields,
-      'poll.fields': options?.pollFields,
-      'media.fields': options?.mediaFields,
-      'user.fields': options?.userFields,
-      'place.fields': options?.placeFields,
+      "tweet.fields": options?.tweetFields,
+      "poll.fields": options?.pollFields,
+      "media.fields": options?.mediaFields,
+      "user.fields": options?.userFields,
+      "place.fields": options?.placeFields,
     });
     const tweetsV2 = tweetData.data;
     if (tweetsV2.length === 0) {
-      console.warn(`No tweet data found for IDs: ${ids.join(', ')}`);
+      console.warn(`No tweet data found for IDs: ${ids.join(", ")}`);
       return [];
     }
     return (
       await Promise.all(
-        tweetsV2.map(
-          async (tweet) => await getTweetV2(tweet.id, auth, options),
-        ),
+        tweetsV2.map(async (tweet) => await getTweetV2(tweet.id, auth, options))
       )
     ).filter((tweet): tweet is Tweet => tweet !== null);
   } catch (error) {
-    console.error(`Error fetching tweets for IDs: ${ids.join(', ')}`, error);
+    console.error(`Error fetching tweets for IDs: ${ids.join(", ")}`, error);
     return [];
   }
 }
 
 export async function getTweetAnonymous(
   id: string,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): Promise<Tweet | null> {
   const tweetResultByRestIdRequest =
     apiRequestFactory.createTweetResultByRestIdRequest();
@@ -1008,11 +1145,11 @@ export async function getTweetAnonymous(
 
   const res = await requestApi<TweetResultByRestId>(
     tweetResultByRestIdRequest.toRequestUrl(),
-    auth,
+    auth
   );
 
   if (!res.success) {
-    throw res.err;
+    throw (res as any).err;
   }
 
   if (!res.value.data) {
@@ -1036,62 +1173,59 @@ interface MediaUploadResponse {
 async function uploadMedia(
   mediaData: Buffer,
   auth: TwitterAuth,
-  mediaType: string,
+  mediaType: string
 ): Promise<string> {
-  const uploadUrl = 'https://upload.twitter.com/1.1/media/upload.json';
+  const uploadUrl = "https://upload.twitter.com/1.1/media/upload.json";
 
   // Get authentication headers
   const cookies = await auth.cookieJar().getCookies(uploadUrl);
-  const xCsrfToken = cookies.find((cookie) => cookie.key === 'ct0');
+  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
   const headers = new Headers({
     authorization: `Bearer ${(auth as any).bearerToken}`,
     cookie: await auth.cookieJar().getCookieString(uploadUrl),
-    'x-csrf-token': xCsrfToken?.value as string,
+    "x-csrf-token": xCsrfToken?.value as string,
   });
 
   // Detect if media is a video based on mediaType
-  const isVideo = mediaType.startsWith('video/');
+  const isVideo = mediaType.startsWith("video/");
 
   if (isVideo) {
     // Handle video upload using chunked media upload
     const mediaId = await uploadVideoInChunks(mediaData, mediaType);
     return mediaId;
-  } else {
-    // Handle image upload
-    const form = new FormData();
-    form.append('media', new Blob([mediaData], {
-      type: mediaType,
-    }));
-
-    const response = await fetch(uploadUrl, {
-      method: 'POST',
-      headers,
-      body: form,
-    });
-
-    await updateCookieJar(auth.cookieJar(), response.headers);
-
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-
-    const data: MediaUploadResponse = await response.json();
-    return data.media_id_string;
   }
+  // Handle image upload
+  const form = new FormData();
+  form.append("media", new Blob([mediaData]));
+
+  const response = await fetch(uploadUrl, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+
+  await updateCookieJar(auth.cookieJar(), response.headers);
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  const data: MediaUploadResponse = await response.json();
+  return data.media_id_string;
 
   // Function to upload video in chunks
   async function uploadVideoInChunks(
     mediaData: Buffer,
-    mediaType: string,
+    mediaType: string
   ): Promise<string> {
     // Initialize upload
     const initParams = new URLSearchParams();
-    initParams.append('command', 'INIT');
-    initParams.append('media_type', mediaType);
-    initParams.append('total_bytes', mediaData.length.toString());
+    initParams.append("command", "INIT");
+    initParams.append("media_type", mediaType);
+    initParams.append("total_bytes", mediaData.length.toString());
 
     const initResponse = await fetch(uploadUrl, {
-      method: 'POST',
+      method: "POST",
       headers,
       body: initParams,
     });
@@ -1110,13 +1244,13 @@ async function uploadMedia(
       const chunk = mediaData.slice(offset, offset + segmentSize);
 
       const appendForm = new FormData();
-      appendForm.append('command', 'APPEND');
-      appendForm.append('media_id', mediaId);
-      appendForm.append('segment_index', segmentIndex.toString());
-      appendForm.append('media', new Blob([chunk]));
+      appendForm.append("command", "APPEND");
+      appendForm.append("media_id", mediaId);
+      appendForm.append("segment_index", segmentIndex.toString());
+      appendForm.append("media", new Blob([chunk]));
 
       const appendResponse = await fetch(uploadUrl, {
-        method: 'POST',
+        method: "POST",
         headers,
         body: appendForm,
       });
@@ -1130,11 +1264,11 @@ async function uploadMedia(
 
     // Finalize upload
     const finalizeParams = new URLSearchParams();
-    finalizeParams.append('command', 'FINALIZE');
-    finalizeParams.append('media_id', mediaId);
+    finalizeParams.append("command", "FINALIZE");
+    finalizeParams.append("media_id", mediaId);
 
     const finalizeResponse = await fetch(uploadUrl, {
-      method: 'POST',
+      method: "POST",
       headers,
       body: finalizeParams,
     });
@@ -1160,15 +1294,15 @@ async function uploadMedia(
       await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5 seconds
 
       const statusParams = new URLSearchParams();
-      statusParams.append('command', 'STATUS');
-      statusParams.append('media_id', mediaId);
+      statusParams.append("command", "STATUS");
+      statusParams.append("media_id", mediaId);
 
       const statusResponse = await fetch(
         `${uploadUrl}?${statusParams.toString()}`,
         {
-          method: 'GET',
+          method: "GET",
           headers,
-        },
+        }
       );
 
       if (!statusResponse.ok) {
@@ -1178,10 +1312,10 @@ async function uploadMedia(
       const statusData = await statusResponse.json();
       const state = statusData.processing_info.state;
 
-      if (state === 'succeeded') {
+      if (state === "succeeded") {
         processing = false;
-      } else if (state === 'failed') {
-        throw new Error('Video processing failed');
+      } else if (state === "failed") {
+        throw new Error("Video processing failed");
       }
     }
   }
@@ -1192,24 +1326,24 @@ export async function createQuoteTweetRequest(
   text: string,
   quotedTweetId: string,
   auth: TwitterAuth,
-  mediaData?: { data: Buffer; mediaType: string }[],
+  mediaData?: { data: Buffer; mediaType: string }[]
 ) {
-  const onboardingTaskUrl = 'https://api.twitter.com/1.1/onboarding/task.json';
+  const onboardingTaskUrl = "https://api.twitter.com/1.1/onboarding/task.json";
 
   // Retrieve necessary cookies and tokens
   const cookies = await auth.cookieJar().getCookies(onboardingTaskUrl);
-  const xCsrfToken = cookies.find((cookie) => cookie.key === 'ct0');
+  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
 
+  const baseHeaders = await getTwitterApiHeaders();
   const headers = new Headers({
+    ...baseHeaders,
     authorization: `Bearer ${(auth as any).bearerToken}`,
     cookie: await auth.cookieJar().getCookieString(onboardingTaskUrl),
-    'content-type': 'application/json',
-    'User-Agent':
-      'Mozilla/5.0 (Linux; Android 11; Nokia G20) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.88 Mobile Safari/537.36',
-    'x-guest-token': (auth as any).guestToken,
-    'x-twitter-auth-type': 'OAuth2Client',
-    'x-twitter-active-user': 'yes',
-    'x-csrf-token': xCsrfToken?.value as string,
+    "content-type": "application/json",
+    "x-guest-token": (auth as any).guestToken,
+    "x-twitter-auth-type": "OAuth2Client",
+    "x-twitter-active-user": "yes",
+    "x-csrf-token": xCsrfToken?.value as string,
   });
 
   // Construct variables for the GraphQL request
@@ -1227,9 +1361,7 @@ export async function createQuoteTweetRequest(
   // Handle media uploads if any media data is provided
   if (mediaData && mediaData.length > 0) {
     const mediaIds = await Promise.all(
-      mediaData.map(({ data, mediaType }) =>
-        uploadMedia(data, auth, mediaType),
-      ),
+      mediaData.map(({ data, mediaType }) => uploadMedia(data, auth, mediaType))
     );
 
     variables.media.media_entities = mediaIds.map((id) => ({
@@ -1240,7 +1372,7 @@ export async function createQuoteTweetRequest(
 
   // Send the GraphQL request to create a quote tweet
   const response = await fetch(
-    'https://twitter.com/i/api/graphql/a1p9RWpkYKBjWv_I3WzS-A/CreateTweet',
+    "https://twitter.com/i/api/graphql/a1p9RWpkYKBjWv_I3WzS-A/CreateTweet",
     {
       headers,
       body: JSON.stringify({
@@ -1287,8 +1419,8 @@ export async function createQuoteTweetRequest(
         },
         fieldToggles: {},
       }),
-      method: 'POST',
-    },
+      method: "POST",
+    }
   );
 
   // Update the cookie jar with any new cookies from the response
@@ -1310,24 +1442,24 @@ export async function createQuoteTweetRequest(
  */
 export async function likeTweet(
   tweetId: string,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): Promise<void> {
   // Prepare the GraphQL endpoint and payload
   const likeTweetUrl =
-    'https://twitter.com/i/api/graphql/lI07N6Otwv1PhnEgXILM7A/FavoriteTweet';
+    "https://twitter.com/i/api/graphql/lI07N6Otwv1PhnEgXILM7A/FavoriteTweet";
 
   // Retrieve necessary cookies and tokens
   const cookies = await auth.cookieJar().getCookies(likeTweetUrl);
-  const xCsrfToken = cookies.find((cookie) => cookie.key === 'ct0');
+  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
 
   const headers = new Headers({
     authorization: `Bearer ${(auth as any).bearerToken}`,
     cookie: await auth.cookieJar().getCookieString(likeTweetUrl),
-    'content-type': 'application/json',
-    'x-guest-token': (auth as any).guestToken,
-    'x-twitter-auth-type': 'OAuth2Client',
-    'x-twitter-active-user': 'yes',
-    'x-csrf-token': xCsrfToken?.value as string,
+    "content-type": "application/json",
+    "x-guest-token": (auth as any).guestToken,
+    "x-twitter-auth-type": "OAuth2Client",
+    "x-twitter-active-user": "yes",
+    "x-csrf-token": xCsrfToken?.value as string,
   });
 
   const payload = {
@@ -1338,7 +1470,7 @@ export async function likeTweet(
 
   // Send the POST request to like the tweet
   const response = await fetch(likeTweetUrl, {
-    method: 'POST',
+    method: "POST",
     headers,
     body: JSON.stringify(payload),
   });
@@ -1360,24 +1492,24 @@ export async function likeTweet(
  */
 export async function retweet(
   tweetId: string,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): Promise<void> {
   // Prepare the GraphQL endpoint and payload
   const retweetUrl =
-    'https://twitter.com/i/api/graphql/ojPdsZsimiJrUGLR1sjUtA/CreateRetweet';
+    "https://twitter.com/i/api/graphql/ojPdsZsimiJrUGLR1sjUtA/CreateRetweet";
 
   // Retrieve necessary cookies and tokens
   const cookies = await auth.cookieJar().getCookies(retweetUrl);
-  const xCsrfToken = cookies.find((cookie) => cookie.key === 'ct0');
+  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
 
   const headers = new Headers({
     authorization: `Bearer ${(auth as any).bearerToken}`,
     cookie: await auth.cookieJar().getCookieString(retweetUrl),
-    'content-type': 'application/json',
-    'x-guest-token': (auth as any).guestToken,
-    'x-twitter-auth-type': 'OAuth2Client',
-    'x-twitter-active-user': 'yes',
-    'x-csrf-token': xCsrfToken?.value as string,
+    "content-type": "application/json",
+    "x-guest-token": (auth as any).guestToken,
+    "x-twitter-auth-type": "OAuth2Client",
+    "x-twitter-active-user": "yes",
+    "x-csrf-token": xCsrfToken?.value as string,
   });
 
   const payload = {
@@ -1389,7 +1521,7 @@ export async function retweet(
 
   // Send the POST request to retweet the tweet
   const response = await fetch(retweetUrl, {
-    method: 'POST',
+    method: "POST",
     headers,
     body: JSON.stringify(payload),
   });
@@ -1407,28 +1539,28 @@ export async function createCreateLongTweetRequest(
   text: string,
   auth: TwitterAuth,
   tweetId?: string,
-  mediaData?: { data: Buffer; mediaType: string }[],
+  mediaData?: { data: Buffer; mediaType: string }[]
 ) {
   // URL for the long tweet endpoint
   const url =
-    'https://x.com/i/api/graphql/YNXM2DGuE2Sff6a2JD3Ztw/CreateNoteTweet';
-  const onboardingTaskUrl = 'https://api.twitter.com/1.1/onboarding/task.json';
+    "https://x.com/i/api/graphql/YNXM2DGuE2Sff6a2JD3Ztw/CreateNoteTweet";
+  const onboardingTaskUrl = "https://api.twitter.com/1.1/onboarding/task.json";
 
   const cookies = await auth.cookieJar().getCookies(onboardingTaskUrl);
-  const xCsrfToken = cookies.find((cookie) => cookie.key === 'ct0');
+  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
 
   //@ ts-expect-error - This is a private API.
+  const baseHeaders = await getTwitterApiHeaders();
   const headers = new Headers({
+    ...baseHeaders,
     authorization: `Bearer ${(auth as any).bearerToken}`,
     cookie: await auth.cookieJar().getCookieString(onboardingTaskUrl),
-    'content-type': 'application/json',
-    'User-Agent':
-      'Mozilla/5.0 (Linux; Android 11; Nokia G20) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.88 Mobile Safari/537.36',
-    'x-guest-token': (auth as any).guestToken,
-    'x-twitter-auth-type': 'OAuth2Client',
-    'x-twitter-active-user': 'yes',
-    'x-twitter-client-language': 'en',
-    'x-csrf-token': xCsrfToken?.value as string,
+    "content-type": "application/json",
+    "x-guest-token": (auth as any).guestToken,
+    "x-twitter-auth-type": "OAuth2Client",
+    "x-twitter-active-user": "yes",
+    "x-twitter-client-language": "en",
+    "x-csrf-token": xCsrfToken?.value as string,
   });
 
   const variables: Record<string, any> = {
@@ -1443,9 +1575,7 @@ export async function createCreateLongTweetRequest(
 
   if (mediaData && mediaData.length > 0) {
     const mediaIds = await Promise.all(
-      mediaData.map(({ data, mediaType }) =>
-        uploadMedia(data, auth, mediaType),
-      ),
+      mediaData.map(({ data, mediaType }) => uploadMedia(data, auth, mediaType))
     );
 
     variables.media.media_entities = mediaIds.map((id) => ({
@@ -1492,9 +1622,9 @@ export async function createCreateLongTweetRequest(
     body: JSON.stringify({
       variables,
       features,
-      queryId: 'YNXM2DGuE2Sff6a2JD3Ztw',
+      queryId: "YNXM2DGuE2Sff6a2JD3Ztw",
     }),
-    method: 'POST',
+    method: "POST",
   });
 
   await updateCookieJar(auth.cookieJar(), response.headers);
@@ -1509,7 +1639,7 @@ export async function createCreateLongTweetRequest(
 
 export async function getArticle(
   id: string,
-  auth: TwitterAuth,
+  auth: TwitterAuth
 ): Promise<TimelineArticle | null> {
   const tweetDetailRequest =
     apiRequestFactory.createTweetDetailArticleRequest();
@@ -1517,11 +1647,11 @@ export async function getArticle(
 
   const res = await requestApi<ThreadedConversation>(
     tweetDetailRequest.toRequestUrl(),
-    auth,
+    auth
   );
 
   if (!res.success) {
-    throw res.err;
+    throw (res as any).err;
   }
 
   if (!res.value) {
@@ -1538,17 +1668,17 @@ export async function getArticle(
  * All comments must remain in English.
  */
 export async function fetchRetweetersPage(
-    tweetId: string,
-    auth: TwitterAuth,
-    cursor?: string,
-    count = 40,
+  tweetId: string,
+  auth: TwitterAuth,
+  cursor?: string,
+  count = 40
 ): Promise<{
   retweeters: Retweeter[];
   bottomCursor?: string;
   topCursor?: string;
 }> {
   const baseUrl =
-      'https://twitter.com/i/api/graphql/VSnHXwLGADxxtetlPnO7xg/Retweeters';
+    "https://twitter.com/i/api/graphql/VSnHXwLGADxxtetlPnO7xg/Retweeters";
 
   // Build query parameters
   const variables = {
@@ -1582,7 +1712,8 @@ export async function fetchRetweetersPage(
     creator_subscriptions_quote_tweet_preview_enabled: false,
     freedom_of_speech_not_reach_fetch_enabled: true,
     standardized_nudges_misinfo: true,
-    tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled: true,
+    tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled:
+      true,
     rweb_video_timestamps_enabled: true,
     longform_notetweets_rich_text_read_enabled: true,
     longform_notetweets_inline_media_enabled: true,
@@ -1592,25 +1723,25 @@ export async function fetchRetweetersPage(
 
   // Prepare URL with query params
   const url = new URL(baseUrl);
-  url.searchParams.set('variables', JSON.stringify(variables));
-  url.searchParams.set('features', JSON.stringify(features));
+  url.searchParams.set("variables", JSON.stringify(variables));
+  url.searchParams.set("features", JSON.stringify(features));
 
   // Retrieve necessary cookies and tokens
   const cookies = await auth.cookieJar().getCookies(url.toString());
-  const xCsrfToken = cookies.find((cookie) => cookie.key === 'ct0');
+  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
 
   const headers = new Headers({
     authorization: `Bearer ${(auth as any).bearerToken}`,
     cookie: await auth.cookieJar().getCookieString(url.toString()),
-    'content-type': 'application/json',
-    'x-guest-token': (auth as any).guestToken,
-    'x-twitter-auth-type': 'OAuth2Client',
-    'x-twitter-active-user': 'yes',
-    'x-csrf-token': xCsrfToken?.value || '',
+    "content-type": "application/json",
+    "x-guest-token": (auth as any).guestToken,
+    "x-twitter-auth-type": "OAuth2Client",
+    "x-twitter-active-user": "yes",
+    "x-csrf-token": xCsrfToken?.value || "",
   });
 
   const response = await fetch(url.toString(), {
-    method: 'GET',
+    method: "GET",
     headers,
   });
 
@@ -1623,7 +1754,7 @@ export async function fetchRetweetersPage(
 
   const json = await response.json();
   const instructions =
-      json?.data?.retweeters_timeline?.timeline?.instructions || [];
+    json?.data?.retweeters_timeline?.timeline?.instructions || [];
 
   const retweeters: Retweeter[] = [];
   let bottomCursor: string | undefined;
@@ -1631,33 +1762,33 @@ export async function fetchRetweetersPage(
 
   // Parse the retweeters from instructions
   for (const instruction of instructions) {
-    if (instruction.type === 'TimelineAddEntries') {
+    if (instruction.type === "TimelineAddEntries") {
       for (const entry of instruction.entries) {
         // If this entry is a user entry
         if (entry.content?.itemContent?.user_results?.result) {
           const user = entry.content.itemContent.user_results.result;
-          const description = user.legacy?.name ?? '';
+          const description = user.legacy?.name ?? "";
 
           retweeters.push({
             rest_id: user.rest_id,
-            screen_name: user.legacy?.screen_name ?? '',
-            name: user.legacy?.name ?? '',
+            screen_name: user.legacy?.screen_name ?? "",
+            name: user.legacy?.name ?? "",
             description,
           });
         }
 
         // Capture the bottom cursor
         if (
-            entry.content?.entryType === 'TimelineTimelineCursor' &&
-            entry.content?.cursorType === 'Bottom'
+          entry.content?.entryType === "TimelineTimelineCursor" &&
+          entry.content?.cursorType === "Bottom"
         ) {
           bottomCursor = entry.content.value;
         }
 
         // Capture the top cursor
         if (
-            entry.content?.entryType === 'TimelineTimelineCursor' &&
-            entry.content?.cursorType === 'Top'
+          entry.content?.entryType === "TimelineTimelineCursor" &&
+          entry.content?.cursorType === "Top"
         ) {
           topCursor = entry.content.value;
         }
@@ -1675,8 +1806,8 @@ export async function fetchRetweetersPage(
  * @returns A list of all users that retweeted the tweet.
  */
 export async function getAllRetweeters(
-    tweetId: string,
-    auth: TwitterAuth
+  tweetId: string,
+  auth: TwitterAuth
 ): Promise<Retweeter[]> {
   let allRetweeters: Retweeter[] = [];
   let cursor: string | undefined;
@@ -1684,10 +1815,10 @@ export async function getAllRetweeters(
   while (true) {
     // Destructure bottomCursor / topCursor
     const { retweeters, bottomCursor, topCursor } = await fetchRetweetersPage(
-        tweetId,
-        auth,
-        cursor,
-        40
+      tweetId,
+      auth,
+      cursor,
+      40
     );
     allRetweeters = allRetweeters.concat(retweeters);
 

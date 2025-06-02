@@ -1,97 +1,110 @@
-import { Cookie } from 'tough-cookie';
-import {
-  bearerToken,
-  FetchTransformOptions,
-  requestApi,
-  RequestApiResult,
-} from './api';
-import { TwitterAuth, TwitterAuthOptions, TwitterGuestAuth } from './auth';
-import { TwitterUserAuth } from './auth-user';
-import {
-  getProfile,
-  getUserIdByScreenName,
-  getScreenNameByUserId,
-  Profile,
-} from './profile';
-import {
-  fetchQuotedTweetsPage,
-  fetchSearchProfiles,
-  fetchSearchTweets,
-  SearchMode,
-  searchProfiles,
-  searchQuotedTweets,
-  searchTweets,
-} from './search';
-import {
-  fetchProfileFollowing,
-  fetchProfileFollowers,
-  getFollowing,
-  getFollowers,
-  followUser,
-} from './relationships';
-import { QueryProfilesResponse, QueryTweetsResponse } from './timeline-v1';
-import { getTrends } from './trends';
-import {
-  Tweet,
-  getTweetAnonymous,
-  getTweets,
-  getLatestTweet,
-  getTweetWhere,
-  getTweetsWhere,
-  getTweetsByUserId,
-  TweetQuery,
-  getTweet,
-  fetchListTweets,
-  getTweetsAndRepliesByUserId,
-  getTweetsAndReplies,
-  createCreateTweetRequest,
-  PollData,
-  createCreateTweetRequestV2,
-  getTweetV2,
-  getTweetsV2,
-  defaultOptions,
-  createQuoteTweetRequest,
-  likeTweet,
-  retweet,
-  createCreateNoteTweetRequest,
-  createCreateLongTweetRequest,
-  getArticle,
-  getAllRetweeters,
-  Retweeter,
-} from './tweets';
-import {
-  parseTimelineTweetsV2,
-  TimelineArticle,
-  TimelineV2,
-} from './timeline-v2';
-import { fetchHomeTimeline } from './timeline-home';
-import { fetchFollowingTimeline } from './timeline-following';
-import {
+import type { Cookie } from "tough-cookie";
+import type {
   TTweetv2Expansion,
   TTweetv2MediaField,
   TTweetv2PlaceField,
   TTweetv2PollField,
   TTweetv2TweetField,
   TTweetv2UserField,
-} from 'twitter-api-v2';
+} from "twitter-api-v2";
 import {
-  DirectMessagesResponse,
-  getDirectMessageConversations,
-  sendDirectMessage,
-  SendDirectMessageResponse,
-} from './messages';
+  type FetchTransformOptions,
+  type RequestApiResult,
+  bearerToken,
+  requestApi,
+} from "./api";
 import {
+  type TwitterAuth,
+  type TwitterAuthOptions,
+  TwitterGuestAuth,
+} from "./auth";
+import { TwitterUserAuth } from "./auth-user";
+import {
+  type GrokChatOptions,
+  type GrokChatResponse,
   createGrokConversation,
   grokChat,
-  GrokChatOptions,
-  GrokChatResponse,
-} from './grok';
+} from "./grok";
+import {
+  type DirectMessagesResponse,
+  type SendDirectMessageResponse,
+  getDirectMessageConversations,
+  sendDirectMessage,
+} from "./messages";
+import {
+  type Profile,
+  getEntityIdByScreenName,
+  getProfile,
+  getScreenNameByUserId,
+} from "./profile";
+import {
+  fetchProfileFollowers,
+  fetchProfileFollowing,
+  followUser,
+  getFollowers,
+  getFollowing,
+} from "./relationships";
+import {
+  SearchMode,
+  fetchQuotedTweetsPage,
+  fetchSearchProfiles,
+  fetchSearchTweets,
+  searchProfiles,
+  searchTweets,
+} from "./search";
+import { fetchFollowingTimeline } from "./timeline-following";
+import { fetchHomeTimeline } from "./timeline-home";
+import type { QueryProfilesResponse, QueryTweetsResponse } from "./timeline-v1";
+import {
+  type TimelineArticle,
+  type TimelineV2,
+  parseTimelineTweetsV2,
+} from "./timeline-v2";
+import { getTrends } from "./trends";
+import {
+  type PollData,
+  type Retweeter,
+  type Tweet,
+  type TweetQuery,
+  createCreateLongTweetRequest,
+  createCreateNoteTweetRequest,
+  createCreateTweetRequest,
+  createCreateTweetRequestV2,
+  createQuoteTweetRequest,
+  defaultOptions,
+  deleteTweet,
+  fetchListTweets,
+  getAllRetweeters,
+  getArticle,
+  getLatestTweet,
+  getTweet,
+  getTweetAnonymous,
+  getTweetV2,
+  getTweetWhere,
+  getTweets,
+  getTweetsAndReplies,
+  getTweetsAndRepliesByUserId,
+  getTweetsByUserId,
+  getTweetsV2,
+  getTweetsWhere,
+  likeTweet,
+  retweet,
+} from "./tweets";
 
-const twUrl = 'https://twitter.com';
+const twUrl = "https://twitter.com";
 const UserTweetsUrl =
-  'https://twitter.com/i/api/graphql/E3opETHurmVJflFsUBVuUQ/UserTweets';
+  "https://twitter.com/i/api/graphql/E3opETHurmVJflFsUBVuUQ/UserTweets";
 
-export interface ScraperOptions {
+/**
+ * An alternative fetch function to use instead of the default fetch function. This may be useful
+ * in nonstandard runtime environments, such as edge workers.
+ *
+ * @param {typeof fetch} fetch - The fetch function to use.
+ *
+ * @param {Partial<FetchTransformOptions>} transform - Additional options that control how requests
+ * and responses are processed. This can be used to proxy requests through other hosts, for example.
+ */
+export interface ClientOptions {
   /**
    * An alternative fetch function to use instead of the default fetch function. This may be useful
    * in nonstandard runtime environments, such as edge workers.
@@ -107,19 +120,19 @@ export interface ScraperOptions {
 
 /**
  * An interface to Twitter's undocumented API.
- * - Reusing Scraper objects is recommended to minimize the time spent authenticating unnecessarily.
+ * - Reusing Client objects is recommended to minimize the time spent authenticating unnecessarily.
  */
-export class Scraper {
+export class Client {
   private auth!: TwitterAuth;
   private authTrends!: TwitterAuth;
   private token: string;
 
   /**
-   * Creates a new Scraper object.
-   * - Scrapers maintain their own guest tokens for Twitter's internal API.
-   * - Reusing Scraper objects is recommended to minimize the time spent authenticating unnecessarily.
+   * Creates a new Client object.
+   * - Clients maintain their own guest tokens for Twitter's internal API.
+   * - Reusing Client objects is recommended to minimize the time spent authenticating unnecessarily.
    */
-  constructor(private readonly options?: Partial<ScraperOptions>) {
+  constructor(private readonly options?: Partial<ClientOptions>) {
     this.token = bearerToken;
     this.useGuestAuth();
   }
@@ -149,8 +162,8 @@ export class Scraper {
    * @param screenName The Twitter screen name of the profile to fetch.
    * @returns The ID of the corresponding account.
    */
-  public async getUserIdByScreenName(screenName: string): Promise<string> {
-    const res = await getUserIdByScreenName(screenName, this.auth);
+  public async getEntityIdByScreenName(screenName: string): Promise<string> {
+    const res = await getEntityIdByScreenName(screenName, this.auth);
     return this.handleResponse(res);
   }
 
@@ -175,7 +188,7 @@ export class Scraper {
   public searchTweets(
     query: string,
     maxTweets: number,
-    searchMode: SearchMode = SearchMode.Top,
+    searchMode: SearchMode = SearchMode.Top
   ): AsyncGenerator<Tweet, void> {
     return searchTweets(query, maxTweets, searchMode, this.auth);
   }
@@ -188,7 +201,7 @@ export class Scraper {
    */
   public searchProfiles(
     query: string,
-    maxProfiles: number,
+    maxProfiles: number
   ): AsyncGenerator<Profile, void> {
     return searchProfiles(query, maxProfiles, this.auth);
   }
@@ -206,7 +219,7 @@ export class Scraper {
     query: string,
     maxTweets: number,
     searchMode: SearchMode,
-    cursor?: string,
+    cursor?: string
   ): Promise<QueryTweetsResponse> {
     return fetchSearchTweets(query, maxTweets, searchMode, this.auth, cursor);
   }
@@ -221,7 +234,7 @@ export class Scraper {
   public fetchSearchProfiles(
     query: string,
     maxProfiles: number,
-    cursor?: string,
+    cursor?: string
   ): Promise<QueryProfilesResponse> {
     return fetchSearchProfiles(query, maxProfiles, this.auth, cursor);
   }
@@ -236,7 +249,7 @@ export class Scraper {
   public fetchListTweets(
     listId: string,
     maxTweets: number,
-    cursor?: string,
+    cursor?: string
   ): Promise<QueryTweetsResponse> {
     return fetchListTweets(listId, maxTweets, cursor, this.auth);
   }
@@ -249,7 +262,7 @@ export class Scraper {
    */
   public getFollowing(
     userId: string,
-    maxProfiles: number,
+    maxProfiles: number
   ): AsyncGenerator<Profile, void> {
     return getFollowing(userId, maxProfiles, this.auth);
   }
@@ -262,7 +275,7 @@ export class Scraper {
    */
   public getFollowers(
     userId: string,
-    maxProfiles: number,
+    maxProfiles: number
   ): AsyncGenerator<Profile, void> {
     return getFollowers(userId, maxProfiles, this.auth);
   }
@@ -277,7 +290,7 @@ export class Scraper {
   public fetchProfileFollowing(
     userId: string,
     maxProfiles: number,
-    cursor?: string,
+    cursor?: string
   ): Promise<QueryProfilesResponse> {
     return fetchProfileFollowing(userId, maxProfiles, this.auth, cursor);
   }
@@ -292,7 +305,7 @@ export class Scraper {
   public fetchProfileFollowers(
     userId: string,
     maxProfiles: number,
-    cursor?: string,
+    cursor?: string
   ): Promise<QueryProfilesResponse> {
     return fetchProfileFollowers(userId, maxProfiles, this.auth, cursor);
   }
@@ -305,7 +318,7 @@ export class Scraper {
    */
   public async fetchHomeTimeline(
     count: number,
-    seenTweetIds: string[],
+    seenTweetIds: string[]
   ): Promise<any[]> {
     return await fetchHomeTimeline(count, seenTweetIds, this.auth);
   }
@@ -318,7 +331,7 @@ export class Scraper {
    */
   public async fetchFollowingTimeline(
     count: number,
-    seenTweetIds: string[],
+    seenTweetIds: string[]
   ): Promise<any[]> {
     return await fetchFollowingTimeline(count, seenTweetIds, this.auth);
   }
@@ -326,7 +339,7 @@ export class Scraper {
   async getUserTweets(
     userId: string,
     maxTweets = 200,
-    cursor?: string,
+    cursor?: string
   ): Promise<{ tweets: Tweet[]; next?: string }> {
     if (maxTweets > 200) {
       maxTweets = 200;
@@ -342,7 +355,7 @@ export class Scraper {
     };
 
     if (cursor) {
-      variables['cursor'] = cursor;
+      variables.cursor = cursor;
     }
 
     const features = {
@@ -378,15 +391,15 @@ export class Scraper {
 
     const res = await requestApi<TimelineV2>(
       `${UserTweetsUrl}?variables=${encodeURIComponent(
-        JSON.stringify(variables),
-      )}&features=${encodeURIComponent(
-        JSON.stringify(features),
-      )}&fieldToggles=${encodeURIComponent(JSON.stringify(fieldToggles))}`,
-      this.auth,
+        JSON.stringify(variables)
+      )}&features=${encodeURIComponent(JSON.stringify(features))}&fieldToggles=${encodeURIComponent(
+        JSON.stringify(fieldToggles)
+      )}`,
+      this.auth
     );
 
     if (!res.success) {
-      throw res.err;
+      throw (res as any).err;
     }
 
     const timelineV2 = parseTimelineTweetsV2(res.value);
@@ -398,7 +411,7 @@ export class Scraper {
 
   async *getUserTweetsIterator(
     userId: string,
-    maxTweets = 200,
+    maxTweets = 200
   ): AsyncGenerator<Tweet, void> {
     let cursor: string | undefined;
     let retrievedTweets = 0;
@@ -407,7 +420,7 @@ export class Scraper {
       const response = await this.getUserTweets(
         userId,
         maxTweets - retrievedTweets,
-        cursor,
+        cursor
       );
 
       for (const tweet of response.tweets) {
@@ -452,7 +465,7 @@ export class Scraper {
    */
   public getTweetsByUserId(
     userId: string,
-    maxTweets = 200,
+    maxTweets = 200
   ): AsyncGenerator<Tweet, void> {
     return getTweetsByUserId(userId, maxTweets, this.auth);
   }
@@ -469,27 +482,39 @@ export class Scraper {
     text: string,
     replyToTweetId?: string,
     mediaData?: { data: Buffer; mediaType: string }[],
-    hideLinkPreview?: boolean,
+    hideLinkPreview?: boolean
   ) {
+    if (!text || text.trim().length === 0) {
+      throw new Error("Text is required");
+    }
+    if (text.toLowerCase().startsWith("error:")) {
+      throw new Error("Error sending tweet: " + text);
+    }
     return await createCreateTweetRequest(
       text,
       this.auth,
       replyToTweetId,
       mediaData,
-      hideLinkPreview,
+      hideLinkPreview
     );
   }
 
   async sendNoteTweet(
     text: string,
     replyToTweetId?: string,
-    mediaData?: { data: Buffer; mediaType: string }[],
+    mediaData?: { data: Buffer; mediaType: string }[]
   ) {
+    if (!text || text.trim().length === 0) {
+      throw new Error("Text is required");
+    }
+    if (text.toLowerCase().startsWith("error:")) {
+      throw new Error("Error sending note tweet: " + text);
+    }
     return await createCreateNoteTweetRequest(
       text,
       this.auth,
       replyToTweetId,
-      mediaData,
+      mediaData
     );
   }
 
@@ -503,13 +528,13 @@ export class Scraper {
   async sendLongTweet(
     text: string,
     replyToTweetId?: string,
-    mediaData?: { data: Buffer; mediaType: string }[],
+    mediaData?: { data: Buffer; mediaType: string }[]
   ) {
     return await createCreateLongTweetRequest(
       text,
       this.auth,
       replyToTweetId,
-      mediaData,
+      mediaData
     );
   }
 
@@ -526,14 +551,13 @@ export class Scraper {
     replyToTweetId?: string,
     options?: {
       poll?: PollData;
-      quoted_tweet_id?: string;
-    },
+    }
   ) {
     return await createCreateTweetRequestV2(
       text,
       this.auth,
       replyToTweetId,
-      options,
+      options
     );
   }
 
@@ -545,7 +569,7 @@ export class Scraper {
    */
   public getTweetsAndReplies(
     user: string,
-    maxTweets = 200,
+    maxTweets = 200
   ): AsyncGenerator<Tweet> {
     return getTweetsAndReplies(user, maxTweets, this.auth);
   }
@@ -558,7 +582,7 @@ export class Scraper {
    */
   public getTweetsAndRepliesByUserId(
     userId: string,
-    maxTweets = 200,
+    maxTweets = 200
   ): AsyncGenerator<Tweet, void> {
     return getTweetsAndRepliesByUserId(userId, maxTweets, this.auth);
   }
@@ -568,8 +592,8 @@ export class Scraper {
    *
    * Example:
    * ```js
-   * const timeline = scraper.getTweets('user', 200);
-   * const retweet = await scraper.getTweetWhere(timeline, { isRetweet: true });
+   * const timeline = client.getTweets('user', 200);
+   * const retweet = await client.getTweetWhere(timeline, { isRetweet: true });
    * ```
    * @param tweets The {@link AsyncIterable} of tweets to search through.
    * @param query A query to test **all** tweets against. This may be either an
@@ -581,7 +605,7 @@ export class Scraper {
    */
   public getTweetWhere(
     tweets: AsyncIterable<Tweet>,
-    query: TweetQuery,
+    query: TweetQuery
   ): Promise<Tweet | null> {
     return getTweetWhere(tweets, query);
   }
@@ -591,8 +615,8 @@ export class Scraper {
    *
    * Example:
    * ```js
-   * const timeline = scraper.getTweets('user', 200);
-   * const retweets = await scraper.getTweetsWhere(timeline, { isRetweet: true });
+   * const timeline = client.getTweets('user', 200);
+   * const retweets = await client.getTweetsWhere(timeline, { isRetweet: true });
    * ```
    * @param tweets The {@link AsyncIterable} of tweets to search through.
    * @param query A query to test **all** tweets against. This may be either an
@@ -604,7 +628,7 @@ export class Scraper {
    */
   public getTweetsWhere(
     tweets: AsyncIterable<Tweet>,
-    query: TweetQuery,
+    query: TweetQuery
   ): Promise<Tweet[]> {
     return getTweetsWhere(tweets, query);
   }
@@ -618,8 +642,8 @@ export class Scraper {
   public getLatestTweet(
     user: string,
     includeRetweets = false,
-    max = 200,
-  ): Promise<Tweet | null | void> {
+    max = 200
+  ): Promise<Tweet | null | undefined> {
     return getLatestTweet(user, includeRetweets, max, this.auth);
   }
 
@@ -631,9 +655,8 @@ export class Scraper {
   public getTweet(id: string): Promise<Tweet | null> {
     if (this.auth instanceof TwitterUserAuth) {
       return getTweet(id, this.auth);
-    } else {
-      return getTweetAnonymous(id, this.auth);
     }
+    return getTweetAnonymous(id, this.auth);
   }
 
   /**
@@ -659,7 +682,7 @@ export class Scraper {
       mediaFields?: TTweetv2MediaField[];
       userFields?: TTweetv2UserField[];
       placeFields?: TTweetv2PlaceField[];
-    } = defaultOptions,
+    } = defaultOptions
   ): Promise<Tweet | null> {
     return await getTweetV2(id, this.auth, options);
   }
@@ -687,22 +710,22 @@ export class Scraper {
       mediaFields?: TTweetv2MediaField[];
       userFields?: TTweetv2UserField[];
       placeFields?: TTweetv2PlaceField[];
-    } = defaultOptions,
+    } = defaultOptions
   ): Promise<Tweet[]> {
     return await getTweetsV2(ids, this.auth, options);
   }
 
   /**
-   * Returns if the scraper has a guest token. The token may not be valid.
-   * @returns `true` if the scraper has a guest token; otherwise `false`.
+   * Returns if the client has a guest token. The token may not be valid.
+   * @returns `true` if the client has a guest token; otherwise `false`.
    */
   public hasGuestToken(): boolean {
     return this.auth.hasToken() || this.authTrends.hasToken();
   }
 
   /**
-   * Returns if the scraper is logged in as a real user.
-   * @returns `true` if the scraper is logged in with a real user account; otherwise `false`.
+   * Returns if the client is logged in as a real user.
+   * @returns `true` if the client is logged in with a real user account; otherwise `false`.
    */
   public async isLoggedIn(): Promise<boolean> {
     return (
@@ -734,7 +757,7 @@ export class Scraper {
     appKey?: string,
     appSecret?: string,
     accessToken?: string,
-    accessSecret?: string,
+    accessSecret?: string
   ): Promise<void> {
     // Swap in a real authorizer for all requests
     const userAuth = new TwitterUserAuth(this.token, this.getAuthOptions());
@@ -746,7 +769,7 @@ export class Scraper {
       appKey,
       appSecret,
       accessToken,
-      accessSecret,
+      accessSecret
     );
     this.auth = userAuth;
     this.authTrends = userAuth;
@@ -771,7 +794,7 @@ export class Scraper {
     return await this.authTrends
       .cookieJar()
       .getCookies(
-        typeof document !== 'undefined' ? document.location.toString() : twUrl,
+        typeof document !== "undefined" ? document.location.toString() : twUrl
       );
   }
 
@@ -801,12 +824,12 @@ export class Scraper {
    * Sets the optional cookie to be used in requests.
    * @param _cookie The cookie to be used in requests.
    * @deprecated This function no longer represents any part of Twitter's auth flow.
-   * @returns This scraper instance.
+   * @returns This client instance.
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  public withCookie(_cookie: string): Scraper {
+  public withCookie(_cookie: string): Client {
     console.warn(
-      'Warning: Scraper#withCookie is deprecated and will be removed in a later version. Use Scraper#login or Scraper#setCookies instead.',
+      "Warning: Client#withCookie is deprecated and will be removed in a later version. Use Client#login or Client#setCookies instead."
     );
     return this;
   }
@@ -815,12 +838,12 @@ export class Scraper {
    * Sets the optional CSRF token to be used in requests.
    * @param _token The CSRF token to be used in requests.
    * @deprecated This function no longer represents any part of Twitter's auth flow.
-   * @returns This scraper instance.
+   * @returns This client instance.
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  public withXCsrfToken(_token: string): Scraper {
+  public withXCsrfToken(_token: string): Client {
     console.warn(
-      'Warning: Scraper#withXCsrfToken is deprecated and will be removed in a later version.',
+      "Warning: Client#withXCsrfToken is deprecated and will be removed in a later version."
     );
     return this;
   }
@@ -837,14 +860,24 @@ export class Scraper {
     quotedTweetId: string,
     options?: {
       mediaData: { data: Buffer; mediaType: string }[];
-    },
+    }
   ) {
     return await createQuoteTweetRequest(
       text,
       quotedTweetId,
       this.auth,
-      options?.mediaData,
+      options?.mediaData
     );
+  }
+
+  /**
+   * Delete a tweet with the given ID.
+   * @param tweetId The ID of the tweet to delete.
+   * @returns A promise that resolves when the tweet is deleted.
+   */
+  public async deleteTweet(tweetId: string): Promise<Response> {
+    // Call the deleteTweet function from tweets.ts
+    return await deleteTweet(tweetId, this.auth);
   }
 
   /**
@@ -885,7 +918,7 @@ export class Scraper {
    */
   public async getDirectMessageConversations(
     userId: string,
-    cursor?: string,
+    cursor?: string
   ): Promise<DirectMessagesResponse> {
     return await getDirectMessageConversations(userId, this.auth, cursor);
   }
@@ -898,7 +931,7 @@ export class Scraper {
    */
   public async sendDirectMessage(
     conversationId: string,
-    text: string,
+    text: string
   ): Promise<SendDirectMessageResponse> {
     return await sendDirectMessage(this.auth, conversationId, text);
   }
@@ -912,7 +945,7 @@ export class Scraper {
 
   private handleResponse<T>(res: RequestApiResult<T>): T {
     if (!res.success) {
-      throw res.err;
+      throw (res as any).err;
     }
 
     return res.value;
@@ -966,7 +999,7 @@ export class Scraper {
    */
   public async getAllQuotedTweets(
     quotedTweetId: string,
-    maxTweetsPerPage = 20,
+    maxTweetsPerPage = 20
   ): Promise<Tweet[]> {
     const allQuotes: Tweet[] = [];
     let cursor: string | undefined;
@@ -977,7 +1010,7 @@ export class Scraper {
         quotedTweetId,
         maxTweetsPerPage,
         this.auth,
-        cursor,
+        cursor
       );
 
       // If there's no new tweets, stop

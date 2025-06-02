@@ -1,8 +1,19 @@
-import { getScraper } from './test-utils';
 import { jest } from '@jest/globals';
+import { getClient } from './test-utils';
 
+/**
+ * Flag to determine if V2 tests should be skipped.
+ * Default is false.
+ */
 let shouldSkipV2Tests = false;
+/**
+ * Variable to store the user ID for testing purposes.
+ * @type {string}
+ */
 let testUserId: string;
+/**
+ * Variable representing the conversation ID used for testing purposes.
+ */
 let testConversationId: string;
 
 beforeAll(async () => {
@@ -21,17 +32,15 @@ beforeAll(async () => {
     !TWITTER_ACCESS_TOKEN_SECRET ||
     !TWITTER_USERNAME
   ) {
-    console.warn(
-      'Skipping tests: Twitter API v2 keys are not available in environment variables.',
-    );
+    console.warn('Skipping tests: Twitter API v2 keys are not available in environment variables.');
     shouldSkipV2Tests = true;
     return;
   }
 
   try {
     // Get the user ID from username
-    const scraper = await getScraper();
-    const profile = await scraper.getProfile(TWITTER_USERNAME);
+    const client = await getClient();
+    const profile = await client.getProfile(TWITTER_USERNAME);
 
     if (!profile.userId) {
       throw new Error('User ID not found');
@@ -40,14 +49,9 @@ beforeAll(async () => {
     testUserId = profile.userId;
 
     // Get first conversation ID for testing
-    const conversations = await scraper.getDirectMessageConversations(
-      testUserId,
-    );
+    const conversations = await client.getDirectMessageConversations(testUserId);
 
-    if (
-      !conversations.conversations.length &&
-      !conversations.conversations[0].conversationId
-    ) {
+    if (!conversations.conversations.length && !conversations.conversations[0].conversationId) {
       throw new Error('No conversations found');
     }
 
@@ -70,10 +74,8 @@ describe('Direct Message Tests', () => {
   test('should get DM conversations', async () => {
     if (shouldSkipV2Tests) return;
 
-    const scraper = await getScraper();
-    const conversations = await scraper.getDirectMessageConversations(
-      testUserId,
-    );
+    const client = await getClient();
+    const conversations = await client.getDirectMessageConversations(testUserId);
 
     expect(conversations).toBeDefined();
     expect(conversations.conversations).toBeInstanceOf(Array);
@@ -83,21 +85,17 @@ describe('Direct Message Tests', () => {
   test('should handle DM send failure gracefully', async () => {
     if (shouldSkipV2Tests) return;
 
-    const scraper = await getScraper();
+    const client = await getClient();
     const invalidConversationId = 'invalid-id';
 
-    await expect(
-      scraper.sendDirectMessage(invalidConversationId, 'test message'),
-    ).rejects.toThrow();
+    await expect(client.sendDirectMessage(invalidConversationId, 'test message')).rejects.toThrow();
   }, 30000);
 
   test('should verify DM conversation structure', async () => {
     if (shouldSkipV2Tests) return;
 
-    const scraper = await getScraper();
-    const conversations = await scraper.getDirectMessageConversations(
-      testUserId,
-    );
+    const client = await getClient();
+    const conversations = await client.getDirectMessageConversations(testUserId);
 
     if (conversations.conversations.length > 0) {
       const conversation = conversations.conversations[0];

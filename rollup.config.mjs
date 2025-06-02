@@ -1,61 +1,51 @@
-import dts from 'rollup-plugin-dts';
-import esbuild from 'rollup-plugin-esbuild';
+import esbuild from 'rollup-plugin-esbuild'
+import dts from 'rollup-plugin-dts'
 
 export default [
-  {
-    input: 'src/_module.ts',
-    plugins: [
-      esbuild({
-        define: {
-          PLATFORM_NODE: 'false',
-          PLATFORM_NODE_JEST: 'false',
+    {
+        input: 'src/index.ts',
+        output: {
+            dir: 'dist/default/esm',
+            format: 'esm',
+            entryFileNames: 'index.mjs',
+            sourcemap: false
         },
-      }),
-    ],
-    output: [
-      {
-        file: 'dist/default/cjs/index.js',
-        format: 'cjs',
-        sourcemap: true,
-      },
-      {
-        file: 'dist/default/esm/index.mjs',
-        format: 'es',
-        sourcemap: true,
-      },
-    ],
-  },
-  {
-    input: 'src/_module.ts',
-    plugins: [
-      esbuild({
-        define: {
-          PLATFORM_NODE: 'true',
-          PLATFORM_NODE_JEST: 'false',
-        },
-      }),
-    ],
-    output: [
-      {
-        file: 'dist/node/cjs/index.cjs',
-        format: 'cjs',
-        sourcemap: true,
-        inlineDynamicImports: true,
-      },
-      {
-        file: 'dist/node/esm/index.mjs',
-        format: 'es',
-        sourcemap: true,
-        inlineDynamicImports: true,
-      },
-    ],
-  },
-  {
-    input: 'src/_module.ts',
-    plugins: [dts()],
-    output: {
-      file: 'dist/types/index.d.ts',
-      format: 'es',
+        plugins: [
+            esbuild({
+            })
+        ],
+        external: [
+            'crypto', 'node:crypto', 'node:tls',
+            'headers-polyfill', 'json-stable-stringify',
+        ]
     },
-  },
-];
+
+    {
+        input: 'src/index.ts',
+        output: {
+            dir: 'dist/default/cjs',
+            format: 'cjs',
+            entryFileNames: 'index.js',
+            sourcemap: false,
+        },
+        plugins: [
+            esbuild()
+        ],
+        external: [
+            'crypto', 'node:crypto', 'node:tls',
+            'headers-polyfill', 'json-stable-stringify',
+        ]
+    },
+
+    {
+        input: 'src/index.ts',
+        output: {
+            file: 'dist/types/index.d.ts',
+            format: 'es',
+        },
+        plugins: [dts()],
+        external: [
+            'headers-polyfill', 'json-stable-stringify',
+        ]
+    }
+]

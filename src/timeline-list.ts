@@ -1,6 +1,19 @@
-import { QueryTweetsResponse } from './timeline-v1';
-import { parseAndPush, TimelineEntryRaw } from './timeline-v2';
-import { Tweet } from './tweets';
+import type { QueryTweetsResponse } from "./timeline-v1";
+import { type TimelineEntryRaw, parseAndPush } from "./timeline-v2";
+import type { Tweet } from "./tweets";
+
+/**
+ * Interface representing a list timeline with optional data.
+ *
+ * @property {Object} data - Optional object containing list timeline data.
+ * @property {Object} data.list - Optional object containing list information.
+ * @property {Object} data.list.tweets_timeline - Optional object containing tweets timeline information.
+ * @property {Object} data.list.tweets_timeline.timeline - Optional object containing timeline instructions.
+ * @property {Object[]} data.list.tweets_timeline.timeline.instructions - Optional array of timeline instructions.
+ * @property {Object[]} data.list.tweets_timeline.timeline.instructions.entries - Optional array of timeline entry objects.
+ * @property {Object} data.list.tweets_timeline.timeline.instructions.entry - Optional single timeline entry object.
+ * @property {string} data.list.tweets_timeline.timeline.instructions.type - Optional string indicating the type of timeline entry.
+ */
 
 export interface ListTimeline {
   data?: {
@@ -18,8 +31,14 @@ export interface ListTimeline {
   };
 }
 
+/**
+ * Parses the list timeline tweets from the provided ListTimeline object.
+ *
+ * @param {ListTimeline} timeline The ListTimeline object to parse tweets from.
+ * @returns {QueryTweetsResponse} An object containing the parsed tweets, next cursor, and previous cursor.
+ */
 export function parseListTimelineTweets(
-  timeline: ListTimeline,
+  timeline: ListTimeline
 ): QueryTweetsResponse {
   let bottomCursor: string | undefined;
   let topCursor: string | undefined;
@@ -33,18 +52,19 @@ export function parseListTimelineTweets(
       const entryContent = entry.content;
       if (!entryContent) continue;
 
-      if (entryContent.cursorType === 'Bottom') {
+      if (entryContent.cursorType === "Bottom") {
         bottomCursor = entryContent.value;
         continue;
-      } else if (entryContent.cursorType === 'Top') {
+      }
+      if (entryContent.cursorType === "Top") {
         topCursor = entryContent.value;
         continue;
       }
 
       const idStr = entry.entryId;
       if (
-        !idStr.startsWith('tweet') &&
-        !idStr.startsWith('list-conversation')
+        !idStr.startsWith("tweet") &&
+        !idStr.startsWith("list-conversation")
       ) {
         continue;
       }
@@ -53,15 +73,11 @@ export function parseListTimelineTweets(
         parseAndPush(tweets, entryContent.itemContent, idStr);
       } else if (entryContent.items) {
         for (const contentItem of entryContent.items) {
-          if (
-            contentItem.item &&
-            contentItem.item.itemContent &&
-            contentItem.entryId
-          ) {
+          if (contentItem.item?.itemContent && contentItem.entryId) {
             parseAndPush(
               tweets,
               contentItem.item.itemContent,
-              contentItem.entryId.split('tweet-')[1],
+              contentItem.entryId.split("tweet-")[1]
             );
           }
         }

@@ -1,16 +1,13 @@
-import { getScraper } from './test-utils';
+import { getClient } from './test-utils';
 
-test('scraper can get profile followers', async () => {
-  const scraper = await getScraper();
+test('client can get profile followers', async () => {
+  const client = await getClient();
 
   const seenProfiles = new Map<string, boolean>();
   const maxProfiles = 50;
   let nProfiles = 0;
 
-  const profiles = await scraper.getFollowers(
-    '1425600122885394432',
-    maxProfiles,
-  );
+  const profiles = await client.getFollowers('1425600122885394432', maxProfiles);
 
   for await (const profile of profiles) {
     nProfiles++;
@@ -29,17 +26,14 @@ test('scraper can get profile followers', async () => {
   expect(nProfiles).toEqual(maxProfiles);
 });
 
-test('scraper can get profile following', async () => {
-  const scraper = await getScraper();
+test('client can get profile following', async () => {
+  const client = await getClient();
 
   const seenProfiles = new Map<string, boolean>();
   const maxProfiles = 50;
   let nProfiles = 0;
 
-  const profiles = await scraper.getFollowing(
-    '1425600122885394432',
-    maxProfiles,
-  );
+  const profiles = await client.getFollowing('1425600122885394432', maxProfiles);
 
   for await (const profile of profiles) {
     nProfiles++;
