@@ -1,7 +1,12 @@
+import type { Buffer } from "buffer";
 import type {
   ApiV2Includes,
+  HashtagV2,
   MediaObjectV2,
+  MediaVariantV2,
+  MentionV2,
   PlaceV2,
+  PollOptionV2,
   PollV2,
   TTweetv2Expansion,
   TTweetv2MediaField,
@@ -10,6 +15,7 @@ import type {
   TTweetv2TweetField,
   TTweetv2UserField,
   TweetV2,
+  UrlV2,
   UserV2,
 } from "twitter-api-v2";
 import { addApiFeatures, requestApi } from "./api";
@@ -31,6 +37,7 @@ import {
   parseTimelineEntryItemContentRaw,
   parseTimelineTweetsV2,
 } from "./timeline-v2";
+import type { Cookie } from "tough-cookie";
 
 /**
  * Default options for Twitter API v2 request parameters.
@@ -446,18 +453,18 @@ export function parseTweetV2ToV1(
     id: tweetV2.id,
     text: tweetV2.text ?? defaultTweetData?.text ?? "",
     hashtags:
-      tweetV2.entities?.hashtags?.map((tag) => tag.tag) ??
+      tweetV2.entities?.hashtags?.map((tag: HashtagV2) => tag.tag) ??
       defaultTweetData?.hashtags ??
       [],
     mentions:
-      tweetV2.entities?.mentions?.map((mention) => ({
+      tweetV2.entities?.mentions?.map((mention: MentionV2) => ({
         id: mention.id,
         username: mention.username,
       })) ??
       defaultTweetData?.mentions ??
       [],
     urls:
-      tweetV2.entities?.urls?.map((url) => url.url) ??
+      tweetV2.entities?.urls?.map((url: UrlV2) => url.url) ??
       defaultTweetData?.urls ??
       [],
     likes: tweetV2.public_metrics?.like_count ?? defaultTweetData?.likes ?? 0,
@@ -488,7 +495,7 @@ export function parseTweetV2ToV1(
         : defaultTweetData?.poll?.end_datetime
           ? defaultTweetData?.poll?.end_datetime
           : undefined,
-      options: poll.options.map((option) => ({
+      options: poll.options.map((option: PollOptionV2) => ({
         position: option.position,
         label: option.label,
         votes: option.votes,
@@ -513,7 +520,7 @@ export function parseTweetV2ToV1(
           preview: media.preview_image_url ?? "",
           url:
             media.variants?.find(
-              (variant) => variant.content_type === "video/mp4"
+              (variant: MediaVariantV2) => variant.content_type === "video/mp4"
             )?.url ?? "",
         });
       }
@@ -560,24 +567,12 @@ export async function createCreateTweetRequest(
   mediaData?: { data: Buffer; mediaType: string }[],
   hideLinkPreview = false
 ) {
-  const onboardingTaskUrl = "https://api.twitter.com/1.1/onboarding/task.json";
-
-  const cookies = await auth.cookieJar().getCookies(onboardingTaskUrl);
-  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
-
-  //@ ts-expect-error - This is a private API.
-  const twitterHeaders = await getTwitterApiHeaders();
-  const headers = new Headers({
-    authorization: `Bearer ${(auth as any).bearerToken}`,
-    cookie: await auth.cookieJar().getCookieString(onboardingTaskUrl),
+  const url =
+    "https://twitter.com/i/api/graphql/a1p9RWpkYKBjWv_I3WzS-A/CreateTweet";
+  const headers = await getTwitterApiHeaders({
     "content-type": "application/json",
-    "x-guest-token": (auth as any).guestToken,
-    "x-twitter-auth-type": "OAuth2Client",
-    "x-twitter-active-user": "yes",
-    "x-twitter-client-language": "en",
-    "x-csrf-token": xCsrfToken?.value as string,
-    ...Object.fromEntries(twitterHeaders.entries()),
   });
+  await auth.installTo(headers, url);
 
   const variables: Record<string, any> = {
     tweet_text: text,
@@ -676,23 +671,12 @@ export async function createCreateNoteTweetRequest(
   tweetId?: string,
   mediaData?: { data: Buffer; mediaType: string }[]
 ) {
-  const onboardingTaskUrl = "https://api.twitter.com/1.1/onboarding/task.json";
-
-  const cookies = await auth.cookieJar().getCookies(onboardingTaskUrl);
-  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
-
-  const baseHeaders = await getTwitterApiHeaders();
-  const headers = new Headers({
-    ...baseHeaders,
-    authorization: `Bearer ${(auth as any).bearerToken}`,
-    cookie: await auth.cookieJar().getCookieString(onboardingTaskUrl),
+  const url =
+    "https://twitter.com/i/api/graphql/0aWhJJmFlxkxv9TAUJPanA/CreateNoteTweet";
+  const headers = await getTwitterApiHeaders({
     "content-type": "application/json",
-    "x-guest-token": (auth as any).guestToken,
-    "x-twitter-auth-type": "OAuth2Client",
-    "x-twitter-active-user": "yes",
-    "x-twitter-client-language": "en",
-    "x-csrf-token": xCsrfToken?.value as string,
   });
+  await auth.installTo(headers, url);
 
   const variables: Record<string, any> = {
     tweet_text: text,
@@ -822,23 +806,12 @@ export async function fetchListTweets(
 }
 
 export async function deleteTweet(tweetId: string, auth: TwitterAuth) {
-  const onboardingTaskUrl = "https://api.twitter.com/1.1/onboarding/task.json";
-
-  // Retrieve necessary cookies and tokens
-  const cookies = await auth.cookieJar().getCookies(onboardingTaskUrl);
-  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
-
-  const baseHeaders = await getTwitterApiHeaders();
-  const headers = new Headers({
-    ...baseHeaders,
-    authorization: `Bearer ${(auth as any).bearerToken}`,
-    cookie: await auth.cookieJar().getCookieString(onboardingTaskUrl),
+  const url =
+    "https://twitter.com/i/api/graphql/VaenaVgh5q5ih7kvyVjgtg/DeleteTweet";
+  const headers = await getTwitterApiHeaders({
     "content-type": "application/json",
-    "x-guest-token": (auth as any).guestToken,
-    "x-twitter-auth-type": "OAuth2Client",
-    "x-twitter-active-user": "yes",
-    "x-csrf-token": xCsrfToken?.value as string,
   });
+  await auth.installTo(headers, url);
 
   // Construct variables for the GraphQL request
   const variables: Record<string, any> = {
@@ -1120,13 +1093,15 @@ export async function getTweetsV2(
       "place.fields": options?.placeFields,
     });
     const tweetsV2 = tweetData.data;
-    if (tweetsV2.length === 0) {
+    if (!tweetsV2 || tweetsV2.length === 0) {
       console.warn(`No tweet data found for IDs: ${ids.join(", ")}`);
       return [];
     }
     return (
       await Promise.all(
-        tweetsV2.map(async (tweet) => await getTweetV2(tweet.id, auth, options))
+        tweetsV2.map(
+          async (tweet: TweetV2) => await getTweetV2(tweet.id, auth, options)
+        )
       )
     ).filter((tweet): tweet is Tweet => tweet !== null);
   } catch (error) {
@@ -1179,7 +1154,7 @@ async function uploadMedia(
 
   // Get authentication headers
   const cookies = await auth.cookieJar().getCookies(uploadUrl);
-  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
+  const xCsrfToken = cookies.find((cookie: Cookie) => cookie.key === "ct0");
   const headers = new Headers({
     authorization: `Bearer ${(auth as any).bearerToken}`,
     cookie: await auth.cookieJar().getCookieString(uploadUrl),
@@ -1328,23 +1303,12 @@ export async function createQuoteTweetRequest(
   auth: TwitterAuth,
   mediaData?: { data: Buffer; mediaType: string }[]
 ) {
-  const onboardingTaskUrl = "https://api.twitter.com/1.1/onboarding/task.json";
-
-  // Retrieve necessary cookies and tokens
-  const cookies = await auth.cookieJar().getCookies(onboardingTaskUrl);
-  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
-
-  const baseHeaders = await getTwitterApiHeaders();
-  const headers = new Headers({
-    ...baseHeaders,
-    authorization: `Bearer ${(auth as any).bearerToken}`,
-    cookie: await auth.cookieJar().getCookieString(onboardingTaskUrl),
+  const url =
+    "https://twitter.com/i/api/graphql/a1p9RWpkYKBjWv_I3WzS-A/CreateTweet";
+  const headers = await getTwitterApiHeaders({
     "content-type": "application/json",
-    "x-guest-token": (auth as any).guestToken,
-    "x-twitter-auth-type": "OAuth2Client",
-    "x-twitter-active-user": "yes",
-    "x-csrf-token": xCsrfToken?.value as string,
   });
+  await auth.installTo(headers, url);
 
   // Construct variables for the GraphQL request
   const variables: Record<string, any> = {
@@ -1448,19 +1412,10 @@ export async function likeTweet(
   const likeTweetUrl =
     "https://twitter.com/i/api/graphql/lI07N6Otwv1PhnEgXILM7A/FavoriteTweet";
 
-  // Retrieve necessary cookies and tokens
-  const cookies = await auth.cookieJar().getCookies(likeTweetUrl);
-  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
-
-  const headers = new Headers({
-    authorization: `Bearer ${(auth as any).bearerToken}`,
-    cookie: await auth.cookieJar().getCookieString(likeTweetUrl),
+  const headers = await getTwitterApiHeaders({
     "content-type": "application/json",
-    "x-guest-token": (auth as any).guestToken,
-    "x-twitter-auth-type": "OAuth2Client",
-    "x-twitter-active-user": "yes",
-    "x-csrf-token": xCsrfToken?.value as string,
   });
+  await auth.installTo(headers, likeTweetUrl);
 
   const payload = {
     variables: {
@@ -1498,19 +1453,10 @@ export async function retweet(
   const retweetUrl =
     "https://twitter.com/i/api/graphql/ojPdsZsimiJrUGLR1sjUtA/CreateRetweet";
 
-  // Retrieve necessary cookies and tokens
-  const cookies = await auth.cookieJar().getCookies(retweetUrl);
-  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
-
-  const headers = new Headers({
-    authorization: `Bearer ${(auth as any).bearerToken}`,
-    cookie: await auth.cookieJar().getCookieString(retweetUrl),
+  const headers = await getTwitterApiHeaders({
     "content-type": "application/json",
-    "x-guest-token": (auth as any).guestToken,
-    "x-twitter-auth-type": "OAuth2Client",
-    "x-twitter-active-user": "yes",
-    "x-csrf-token": xCsrfToken?.value as string,
   });
+  await auth.installTo(headers, retweetUrl);
 
   const payload = {
     variables: {
@@ -1544,24 +1490,10 @@ export async function createCreateLongTweetRequest(
   // URL for the long tweet endpoint
   const url =
     "https://x.com/i/api/graphql/YNXM2DGuE2Sff6a2JD3Ztw/CreateNoteTweet";
-  const onboardingTaskUrl = "https://api.twitter.com/1.1/onboarding/task.json";
-
-  const cookies = await auth.cookieJar().getCookies(onboardingTaskUrl);
-  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
-
-  //@ ts-expect-error - This is a private API.
-  const baseHeaders = await getTwitterApiHeaders();
-  const headers = new Headers({
-    ...baseHeaders,
-    authorization: `Bearer ${(auth as any).bearerToken}`,
-    cookie: await auth.cookieJar().getCookieString(onboardingTaskUrl),
+  const headers = await getTwitterApiHeaders({
     "content-type": "application/json",
-    "x-guest-token": (auth as any).guestToken,
-    "x-twitter-auth-type": "OAuth2Client",
-    "x-twitter-active-user": "yes",
-    "x-twitter-client-language": "en",
-    "x-csrf-token": xCsrfToken?.value as string,
   });
+  await auth.installTo(headers, url);
 
   const variables: Record<string, any> = {
     tweet_text: text,
@@ -1588,44 +1520,45 @@ export async function createCreateLongTweetRequest(
     variables.reply = { in_reply_to_tweet_id: tweetId };
   }
 
-  const features = {
-    premium_content_api_read_enabled: false,
-    communities_web_enable_tweet_community_results_fetch: true,
-    c9s_tweet_anatomy_moderator_badge_enabled: true,
-    responsive_web_grok_analyze_button_fetch_trends_enabled: true,
-    responsive_web_edit_tweet_api_enabled: true,
-    graphql_is_translatable_rweb_tweet_is_translatable_enabled: true,
-    view_counts_everywhere_api_enabled: true,
-    longform_notetweets_consumption_enabled: true,
-    responsive_web_twitter_article_tweet_consumption_enabled: true,
-    tweet_awards_web_tipping_enabled: false,
-    creator_subscriptions_quote_tweet_preview_enabled: false,
-    longform_notetweets_rich_text_read_enabled: true,
-    longform_notetweets_inline_media_enabled: true,
-    profile_label_improvements_pcf_label_in_post_enabled: false,
-    rweb_tipjar_consumption_enabled: true,
-    responsive_web_graphql_exclude_directive_enabled: true,
-    verified_phone_label_enabled: false,
-    articles_preview_enabled: true,
-    rweb_video_timestamps_enabled: true,
-    responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
-    freedom_of_speech_not_reach_fetch_enabled: true,
-    standardized_nudges_misinfo: true,
-    tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled:
-      true,
-    responsive_web_graphql_timeline_navigation_enabled: true,
-    responsive_web_enhance_cards_enabled: false,
-  };
-
-  const response = await fetch(url, {
-    headers,
-    body: JSON.stringify({
-      variables,
-      features,
-      queryId: "YNXM2DGuE2Sff6a2JD3Ztw",
-    }),
-    method: "POST",
-  });
+  const response = await fetch(
+    "https://twitter.com/i/api/graphql/YNXM2DGuE2Sff6a2JD3Ztw/CreateNoteTweet",
+    {
+      headers,
+      body: JSON.stringify({
+        variables,
+        features: {
+          premium_content_api_read_enabled: false,
+          communities_web_enable_tweet_community_results_fetch: true,
+          c9s_tweet_anatomy_moderator_badge_enabled: true,
+          responsive_web_grok_analyze_button_fetch_trends_enabled: true,
+          responsive_web_edit_tweet_api_enabled: true,
+          graphql_is_translatable_rweb_tweet_is_translatable_enabled: true,
+          view_counts_everywhere_api_enabled: true,
+          longform_notetweets_consumption_enabled: true,
+          responsive_web_twitter_article_tweet_consumption_enabled: true,
+          tweet_awards_web_tipping_enabled: false,
+          creator_subscriptions_quote_tweet_preview_enabled: false,
+          longform_notetweets_rich_text_read_enabled: true,
+          longform_notetweets_inline_media_enabled: true,
+          profile_label_improvements_pcf_label_in_post_enabled: false,
+          rweb_tipjar_consumption_enabled: true,
+          responsive_web_graphql_exclude_directive_enabled: true,
+          verified_phone_label_enabled: false,
+          articles_preview_enabled: true,
+          rweb_video_timestamps_enabled: true,
+          responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
+          freedom_of_speech_not_reach_fetch_enabled: true,
+          standardized_nudges_misinfo: true,
+          tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled:
+            true,
+          responsive_web_graphql_timeline_navigation_enabled: true,
+          responsive_web_enhance_cards_enabled: false,
+        },
+        fieldToggles: {},
+      }),
+      method: "POST",
+    }
+  );
 
   await updateCookieJar(auth.cookieJar(), response.headers);
 
@@ -1728,17 +1661,16 @@ export async function fetchRetweetersPage(
 
   // Retrieve necessary cookies and tokens
   const cookies = await auth.cookieJar().getCookies(url.toString());
-  const xCsrfToken = cookies.find((cookie) => cookie.key === "ct0");
+  const xCsrfToken = cookies.find((cookie: Cookie) => cookie.key === "ct0");
 
-  const headers = new Headers({
-    authorization: `Bearer ${(auth as any).bearerToken}`,
-    cookie: await auth.cookieJar().getCookieString(url.toString()),
-    "content-type": "application/json",
-    "x-guest-token": (auth as any).guestToken,
-    "x-twitter-auth-type": "OAuth2Client",
-    "x-twitter-active-user": "yes",
-    "x-csrf-token": xCsrfToken?.value || "",
+  const headers = await getTwitterApiHeaders({
+    "Content-Type": "application/json",
   });
+
+  await auth.installTo(
+    headers,
+    "https://twitter.com/i/api/graphql/VSnHXwLGADxxtetlPnO7xg/Retweeters"
+  );
 
   const response = await fetch(url.toString(), {
     method: "GET",
