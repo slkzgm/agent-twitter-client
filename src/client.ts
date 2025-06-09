@@ -43,6 +43,7 @@ import {
   followUser,
   getFollowers,
   getFollowing,
+  unfollowUser,
 } from "./relationships";
 import {
   SearchMode,
@@ -908,6 +909,16 @@ export class Client {
   public async followUser(userName: string): Promise<void> {
     // Call the followUser function from relationships.ts
     await followUser(userName, this.auth);
+  }
+
+  /**
+   * Unfollows a user on Twitter.
+   * @param {string} userName - The username of the user to unfollow.
+   * @returns {Promise<void>}
+   */
+  public async unfollowUser(userName: string): Promise<void> {
+    // Call the unfollowUser function from relationships.ts
+    await unfollowUser(userName, this.auth);
   }
 
   /**
